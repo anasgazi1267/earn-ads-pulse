@@ -1,73 +1,143 @@
-# Welcome to your Lovable project
+# Ads by USDT Earn - Telegram Mini App
 
-## Project info
+A professional Telegram Mini App for earning USDT by watching advertisements and spinning a reward wheel.
 
-**URL**: https://lovable.dev/projects/972c74a1-efe5-41df-ae8e-0a398e8bf15d
+## Features
 
-## How can I edit this code?
+### 🔐 Channel Verification System
+- Users must join 4 required Telegram channels before accessing the app
+- Blocking page prevents access until all channels are joined
+- Real-time verification (requires Telegram Bot API integration)
 
-There are several ways of editing your application.
+### 📱 Core Pages
+1. **Home Page** - Welcome message, balance display, and daily statistics
+2. **Ad Viewer** - Watch ads with 15-second countdown timer and "Earn Now" button
+3. **Spin Wheel** - 30 daily spins based on ad views with various USDT rewards
+4. **Referral System** - Share referral links and earn 10% from friend's earnings
+5. **Withdrawal Page** - Request withdrawals to Binance Pay with admin approval
 
-**Use Lovable**
+### 🎨 Design Features
+- Mobile-first responsive design
+- Dark theme with professional UI
+- Sticky bottom navigation with icons
+- Smooth animations and transitions
+- High contrast for accessibility
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/972c74a1-efe5-41df-ae8e-0a398e8bf15d) and start prompting.
+### ⚙️ Technical Features
+- Google Sheets API integration for dynamic content
+- Local storage fallback for development
+- Telegram Web App integration
+- Admin panel for managing withdrawals and settings
+- Real-time stats tracking
 
-Changes made via Lovable will be committed automatically to this repo.
+## Required Telegram Channels
+1. https://t.me/AnasEarnHunter
+2. https://t.me/ExpossDark
+3. https://t.me/TechnicalAnas
+4. https://t.me/Anas_Promotion
 
-**Use your preferred IDE**
+## Setup Instructions
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 1. Google Sheets Setup
+Create a Google Spreadsheet with the following sheets:
+- **Users**: Store user data and statistics
+- **Ads**: Store advertisement content and links
+- **Withdrawals**: Track withdrawal requests and status
+- **Settings**: App configuration (rates, limits, etc.)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 2. Google Sheets API
+1. Enable Google Sheets API in Google Cloud Console
+2. Create credentials and get API key
+3. Update `src/utils/googleSheets.ts` with your API key and spreadsheet ID
 
-Follow these steps:
+### 3. Telegram Bot Setup
+1. Create a Telegram Bot via @BotFather
+2. Set up webhook for channel membership verification
+3. Update channel verification logic in the app
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### 4. Environment Configuration
+Update the following in `src/utils/googleSheets.ts`:
+```typescript
+const config = {
+  apiKey: 'YOUR_GOOGLE_SHEETS_API_KEY',
+  spreadsheetId: 'YOUR_SPREADSHEET_ID',
+  // ... other config
+};
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 5. Deploy to Telegram
+1. Deploy the app to Netlify, Vercel, or similar platform
+2. Set up your Telegram Mini App in @BotFather
+3. Configure the Mini App URL to your deployed app
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Admin Features
+- Admin Telegram ID: 7390932497
+- Approve/reject withdrawal requests
+- Modify earning rates and limits
+- View user statistics
+- Manage app settings via Google Sheets
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+## Development
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Production Deployment
+```bash
+npm run build
+# Deploy dist folder to your hosting platform
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## File Structure
+```
+src/
+├── components/           # React components
+│   ├── HomePage.tsx     # Main dashboard
+│   ├── AdViewerPage.tsx # Ad watching interface
+│   ├── SpinPage.tsx     # Reward wheel
+│   ├── ReferralPage.tsx # Referral system
+│   ├── WithdrawPage.tsx # Withdrawal interface
+│   └── ...
+├── utils/
+│   └── googleSheets.ts  # Google Sheets integration
+└── pages/
+    └── Index.tsx        # Main app component
+```
 
-**Use GitHub Codespaces**
+## Features Breakdown
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Ad System
+- 30 ads per day limit
+- 15-second countdown timer
+- Dynamic content from Google Sheets
+- Support for image and HTML ads
+- Automatic earnings calculation
 
-## What technologies are used for this project?
+### Spin Wheel
+- 30 spins per day (based on ad views)
+- 8 different reward tiers
+- Smooth animation with 3-second duration
+- Fair randomization system
 
-This project is built with:
+### Referral System
+- Unique referral links per user
+- 10% commission from referrals
+- Real-time earnings tracking
+- Social sharing integration
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Withdrawal System
+- Minimum withdrawal: $1.00 USDT
+- Binance Pay integration
+- Admin approval required
+- 24-48 hour processing time
+- Complete withdrawal history
 
-## How can I deploy this project?
+## Security Notes
+- All sensitive operations require admin approval
+- Local storage used for development/fallback
+- Production requires proper API security
+- Channel membership verification via Telegram Bot API
 
-Simply open [Lovable](https://lovable.dev/projects/972c74a1-efe5-41df-ae8e-0a398e8bf15d) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Support
+For technical support or questions about setup, please refer to the documentation or contact the development team.
