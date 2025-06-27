@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from '../components/HomePage';
 import AdViewerPage from '../components/AdViewerPage';
 import SpinPage from '../components/SpinPage';
@@ -99,19 +99,17 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <Router>
-        <div className="pb-20">
-          <Routes>
-            <Route path="/" element={<HomePage userInfo={userInfo} />} />
-            <Route path="/ads" element={<AdViewerPage />} />
-            <Route path="/spin" element={<SpinPage />} />
-            <Route path="/referral" element={<ReferralPage userInfo={userInfo} />} />
-            <Route path="/withdraw" element={<WithdrawPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-        <BottomNavigation />
-      </Router>
+      <div className="pb-20">
+        <Routes>
+          <Route path="/" element={<HomePage userInfo={userInfo} />} />
+          <Route path="/ads" element={<AdViewerPage />} />
+          <Route path="/spin" element={<SpinPage />} />
+          <Route path="/referral" element={<ReferralPage userInfo={userInfo} />} />
+          <Route path="/withdraw" element={<WithdrawPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+      <BottomNavigation />
       <Toaster />
     </div>
   );
