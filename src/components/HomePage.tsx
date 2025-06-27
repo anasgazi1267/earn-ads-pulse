@@ -1,13 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Activity, Users } from 'lucide-react';
 
 interface HomePageProps {
   userInfo: any;
+  referralCount: number;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ userInfo }) => {
+const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount }) => {
   const [stats, setStats] = useState({
     balance: 0,
     adsWatched: 0,
@@ -23,12 +23,12 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo }) => {
   const loadUserStats = async () => {
     try {
       // This would connect to your Google Sheets API
-      // For now, using mock data
+      // For now, using mock data with passed referralCount
       setStats({
         balance: 12.50,
         adsWatched: 15,
         spinsUsed: 8,
-        referrals: 3
+        referrals: referralCount
       });
     } catch (error) {
       console.error('Error loading stats:', error);
