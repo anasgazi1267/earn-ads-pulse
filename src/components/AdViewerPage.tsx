@@ -1,13 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Clock } from 'lucide-react';
+import { DollarSign, Clock, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdmin } from '../contexts/AdminContext';
 
 interface Ad {
   id: string;
-  type: 'image' | 'html';
+  type: 'image' | 'html' | 'monetag';
   content: string;
   link?: string;
   reward: number;
@@ -20,12 +20,22 @@ const AdViewerPage: React.FC = () => {
   const [adsWatchedToday, setAdsWatchedToday] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { settings } = useAdmin();
 
-  const maxAdsPerDay = 30;
+  const maxAdsPerDay = parseInt(settings.dailyAdLimit);
+  const adReward = parseFloat(settings.adRewardRate);
 
   useEffect(() => {
     loadNextAd();
     loadTodayStats();
+
+    // Listen for admin settings updates
+    const handleSettingsUpdate = () => {
+      loadTodayStats();
+    };
+
+    window.addEventListener('adminSettingsUpdated', handleSettingsUpdate);
+    return () => window.removeEventListener('adminSettingsUpdated', handleSettingsUpdate);
   }, []);
 
   useEffect(() => {
@@ -49,22 +59,26 @@ const AdViewerPage: React.FC = () => {
   const loadNextAd = async () => {
     setIsLoading(true);
     try {
-      // This would load from Google Sheets API
-      // Mock ad data for now
       const mockAds: Ad[] = [
         {
           id: '1',
           type: 'image',
           content: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop',
           link: 'https://example.com',
-          reward: 0.05
+          reward: adReward
         },
         {
           id: '2',
           type: 'html',
-          content: '<div style="background: linear-gradient(45deg, #FF6B6B, #4ECDC4); padding: 40px; text-align: center; color: white; border-radius: 10px;"><h2>Special Offer!</h2><p>Get 50% off your next purchase</p></div>',
+          content: settings.htmlAdCode || '<div style="background: linear-gradient(45deg, #FF6B6B, #4ECDC4); padding: 40px; text-align: center; color: white; border-radius: 10px;"><h2>Special Offer!</h2><p>Get 50% off your next purchase</p></div>',
           link: 'https://example.com/offer',
-          reward: 0.08
+          reward: adReward
+        },
+        {
+          id: '3',
+          type: 'monetag',
+          content: settings.monetagBannerCode || '',
+          reward: adReward
         }
       ];
 
@@ -88,28 +102,24 @@ const AdViewerPage: React.FC = () => {
     if (!currentAd || !canEarn) return;
 
     try {
-      // Update ads watched count
       const today = new Date().toDateString();
       const newCount = adsWatchedToday + 1;
       localStorage.setItem(`ads_watched_${today}`, newCount.toString());
       setAdsWatchedToday(newCount);
 
-      // Add earnings (this would sync with Google Sheets)
       const currentBalance = parseFloat(localStorage.getItem('balance') || '0');
       const newBalance = currentBalance + currentAd.reward;
       localStorage.setItem('balance', newBalance.toString());
 
       toast({
         title: "Earned!",
-        description: `You earned $${currentAd.reward.toFixed(2)} USDT`,
+        description: `You earned $${currentAd.reward.toFixed(3)} USDT`,
       });
 
-      // Open ad link if available
       if (currentAd.link) {
         window.open(currentAd.link, '_blank');
       }
 
-      // Load next ad if user hasn't reached daily limit
       if (newCount < maxAdsPerDay) {
         setTimeout(() => {
           loadNextAd();
@@ -136,7 +146,7 @@ const AdViewerPage: React.FC = () => {
               You've watched {maxAdsPerDay} ads today. Come back tomorrow for more earning opportunities!
             </p>
             <p className="text-sm text-gray-500">
-              Reset in: {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleTimeString()}
+              Reset at midnight (00:00 UTC)
             </p>
           </CardContent>
         </Card>
@@ -146,39 +156,60 @@ const AdViewerPage: React.FC = () => {
 
   return (
     <div className="p-4 space-y-4">
-      {/* Header */}
       <div className="text-center py-4">
-        <h1 className="text-2xl font-bold text-white mb-2">Watch & Earn</h1>
-        <p className="text-gray-400">
-          Progress: {adsWatchedToday}/{maxAdsPerDay} ads today
-        </p>
+        <h1 className="text-2xl font-bold text-white mb-2 flex items-center justify-center">
+          <Eye className="w-6 h-6 mr-2" />
+          Watch & Earn
+        </h1>
+        <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+          <p className="text-gray-400">
+            Progress: <span className="text-green-400 font-semibold">{adsWatchedToday}/{maxAdsPerDay}</span> ads today
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Earn ${adReward.toFixed(3)} USDT per ad
+          </p>
+        </div>
       </div>
 
-      {/* Ad Display */}
       {isLoading ? (
         <Card className="bg-gray-800 border-gray-700">
           <CardContent className="p-6 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-white">Loading advertisement...</p>
+            <p className="text-white">Loading premium advertisement...</p>
           </CardContent>
         </Card>
       ) : currentAd ? (
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-gray-800 border-gray-700 shadow-lg">
           <CardHeader>
             <CardTitle className="text-white flex items-center justify-between">
-              <span>Advertisement</span>
-              <span className="text-green-400">${currentAd.reward.toFixed(2)}</span>
+              <span className="flex items-center">
+                <DollarSign className="w-5 h-5 mr-2 text-green-400" />
+                Advertisement
+              </span>
+              <span className="text-green-400 font-bold text-lg">
+                +${currentAd.reward.toFixed(3)}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Ad Content */}
-            <div className="bg-gray-700 rounded-lg p-4 min-h-[200px] flex items-center justify-center">
+            <div className="bg-gray-700 rounded-lg p-4 min-h-[250px] flex items-center justify-center">
               {currentAd.type === 'image' ? (
                 <img 
                   src={currentAd.content} 
                   alt="Advertisement" 
                   className="max-w-full max-h-full rounded-lg"
                 />
+              ) : currentAd.type === 'monetag' ? (
+                <div className="w-full">
+                  {settings.monetagBannerCode ? (
+                    <div dangerouslySetInnerHTML={{ __html: settings.monetagBannerCode }} />
+                  ) : (
+                    <div className="text-center text-gray-400 p-8">
+                      <p>Monetag Banner Ad</p>
+                      <p className="text-sm mt-2">Configure in Admin Panel</p>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div 
                   dangerouslySetInnerHTML={{ __html: currentAd.content }}
@@ -187,37 +218,41 @@ const AdViewerPage: React.FC = () => {
               )}
             </div>
 
-            {/* Timer */}
             {countdown > 0 && (
-              <div className="text-center">
+              <div className="text-center bg-orange-500/20 rounded-lg p-4 border border-orange-500/30">
                 <div className="flex items-center justify-center space-x-2 text-orange-400">
                   <Clock className="w-5 h-5" />
-                  <span className="text-lg font-semibold">{countdown}s</span>
+                  <span className="text-xl font-bold">{countdown}s</span>
                 </div>
-                <p className="text-sm text-gray-400 mt-1">Please wait to earn</p>
+                <p className="text-sm text-orange-300 mt-1">Please wait to earn your reward</p>
               </div>
             )}
 
-            {/* Earn Button */}
             <Button
               onClick={handleEarnNow}
               disabled={!canEarn}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600"
+              className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300"
             >
-              {canEarn ? `Earn $${currentAd.reward.toFixed(2)} Now` : 'Please Wait...'}
+              {canEarn ? (
+                <>
+                  <DollarSign className="w-5 h-5 mr-2" />
+                  Earn ${currentAd.reward.toFixed(3)} Now
+                </>
+              ) : (
+                'Please Wait...'
+              )}
             </Button>
           </CardContent>
         </Card>
       ) : null}
 
-      {/* Next Ad Button */}
       {canEarn && (
         <Button
           onClick={loadNextAd}
           variant="outline"
-          className="w-full border-gray-600 text-white hover:bg-gray-700"
+          className="w-full h-12 border-gray-600 text-white hover:bg-gray-700 transition-all duration-300"
         >
-          Load Next Ad
+          Load Next Advertisement
         </Button>
       )}
     </div>

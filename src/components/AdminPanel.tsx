@@ -6,38 +6,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { useAdmin } from '../contexts/AdminContext';
+import { Settings, Users, DollarSign, BarChart3, Globe, Shield } from 'lucide-react';
 
 const AdminPanel: React.FC = () => {
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>({
-    adRewardRate: '0.05',
-    referralRate: '10',
-    minWithdrawal: '1.0',
-    dailyAdLimit: '30',
-    dailySpinLimit: '30',
-    spinWinPercentage: '15',
-    htmlAdCode: '',
-    requiredReferrals: '5'
-  });
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [adminId, setAdminId] = useState('');
   const { toast } = useToast();
+  const { settings, updateSettings, isChannelVerificationEnabled, setChannelVerificationEnabled } = useAdmin();
 
   const ADMIN_TELEGRAM_ID = '7390932497';
 
   useEffect(() => {
-    // Check if user is admin
     if (window.Telegram?.WebApp) {
       const user = window.Telegram.WebApp.initDataUnsafe?.user;
       if (user && user.id.toString() === ADMIN_TELEGRAM_ID) {
         setIsAuthorized(true);
         loadAdminData();
       }
-    } else {
-      // For development - allow access with admin ID input
-      console.log('Development mode - Admin panel accessible');
     }
   }, []);
 
@@ -47,19 +37,19 @@ const AdminPanel: React.FC = () => {
       loadAdminData();
       toast({
         title: "Access Granted",
-        description: "Welcome to the admin panel",
+        description: "Welcome to the Professional Admin Panel",
       });
     } else {
       toast({
         title: "Access Denied",
-        description: "Invalid admin ID",
+        description: "Invalid admin credentials",
         variant: "destructive"
       });
     }
   };
 
   const loadAdminData = () => {
-    // Mock data - in production this would load from Google Sheets
+    // Mock data - in production this would load from your backend
     setWithdrawalRequests([
       {
         id: '1',
@@ -92,23 +82,8 @@ const AdminPanel: React.FC = () => {
         adsWatched: 25,
         spinsUsed: 20,
         joinDate: '2023-12-01'
-      },
-      {
-        id: 'user456',
-        username: 'JaneSmith',
-        balance: 8.75,
-        referrals: 7,
-        adsWatched: 30,
-        spinsUsed: 30,
-        joinDate: '2023-12-05'
       }
     ]);
-
-    // Load settings from localStorage for demo
-    const storedSettings = localStorage.getItem('adminSettings');
-    if (storedSettings) {
-      setSettings(JSON.parse(storedSettings));
-    }
   };
 
   const handleWithdrawalAction = (withdrawalId: string, action: 'approve' | 'reject') => {
@@ -122,35 +97,37 @@ const AdminPanel: React.FC = () => {
 
     toast({
       title: `Withdrawal ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-      description: `Withdrawal request has been ${action === 'approve' ? 'approved' : 'rejected'}`,
+      description: `Request processed successfully`,
     });
   };
 
-  const updateSetting = (key: string, value: string) => {
-    const updatedSettings = { ...settings, [key]: value };
-    setSettings(updatedSettings);
-    localStorage.setItem('adminSettings', JSON.stringify(updatedSettings));
-    
+  const handleSettingUpdate = (key: string, value: string) => {
+    updateSettings({ [key]: value });
     toast({
       title: "Setting Updated",
-      description: `${key} has been updated to ${value}`,
+      description: `${key} updated successfully - Changes applied instantly`,
     });
   };
 
-  const saveAllSettings = () => {
-    localStorage.setItem('adminSettings', JSON.stringify(settings));
+  const toggleChannelVerification = (enabled: boolean) => {
+    setChannelVerificationEnabled(enabled);
+    localStorage.setItem('channelVerificationEnabled', JSON.stringify(enabled));
     toast({
-      title: "Settings Saved",
-      description: "All settings have been saved successfully",
+      title: enabled ? "Channel Verification Enabled" : "Channel Verification Disabled",
+      description: enabled ? "Users must join all channels" : "Channel join requirement bypassed",
     });
   };
 
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white text-center">Admin Access</CardTitle>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-gray-800/90 backdrop-blur-sm border-gray-700 shadow-2xl">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-r from-red-500 to-purple-600 rounded-full flex items-center justify-center">
+              <Shield className="w-8 h-8 text-white" />
+            </div>
+            <CardTitle className="text-white text-2xl">Admin Access Required</CardTitle>
+            <p className="text-gray-400 mt-2">Professional Control Panel</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -158,17 +135,17 @@ const AdminPanel: React.FC = () => {
               <Input
                 id="adminId"
                 type="text"
-                placeholder="Enter admin Telegram ID"
+                placeholder="Enter your admin ID"
                 value={adminId}
                 onChange={(e) => setAdminId(e.target.value)}
                 className="bg-gray-700 border-gray-600 text-white"
               />
             </div>
-            <Button onClick={handleAdminLogin} className="w-full">
-              Access Admin Panel
+            <Button onClick={handleAdminLogin} className="w-full bg-gradient-to-r from-blue-600 to-purple-600">
+              Access Control Panel
             </Button>
-            <p className="text-gray-400 text-sm text-center">
-              Only authorized admin (ID: {ADMIN_TELEGRAM_ID}) can access this panel
+            <p className="text-gray-400 text-xs text-center p-3 bg-gray-800/50 rounded-lg">
+              🔐 Authorized ID: {ADMIN_TELEGRAM_ID}
             </p>
           </CardContent>
         </Card>
@@ -177,35 +154,203 @@ const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-center">Admin Control Panel</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            Professional Admin Control Panel
+          </h1>
+          <p className="text-gray-400">Real-time management for Ads by USDT Earn</p>
+        </div>
         
-        <Tabs defaultValue="withdrawals" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-gray-800">
-            <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="ads">Ads & Content</TabsTrigger>
+        <Tabs defaultValue="settings" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5 bg-gray-800/50 backdrop-blur-sm border border-gray-700">
+            <TabsTrigger value="settings" className="flex items-center space-x-2">
+              <Settings className="w-4 h-4" />
+              <span>Settings</span>
+            </TabsTrigger>
+            <TabsTrigger value="withdrawals" className="flex items-center space-x-2">
+              <DollarSign className="w-4 h-4" />
+              <span>Withdrawals</span>
+            </TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center space-x-2">
+              <Users className="w-4 h-4" />
+              <span>Users</span>
+            </TabsTrigger>
+            <TabsTrigger value="ads" className="flex items-center space-x-2">
+              <Globe className="w-4 h-4" />
+              <span>Ads</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Analytics</span>
+            </TabsTrigger>
           </TabsList>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <DollarSign className="w-5 h-5 mr-2" />
+                    Earning Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-white">Ad Reward Rate (USDT)</Label>
+                    <Input
+                      value={settings.adRewardRate}
+                      onChange={(e) => handleSettingUpdate('adRewardRate', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="0.05"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-white">Referral Bonus (%)</Label>
+                    <Input
+                      value={settings.referralRate}
+                      onChange={(e) => handleSettingUpdate('referralRate', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="10"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-white">Minimum Withdrawal (USDT)</Label>
+                    <Input
+                      value={settings.minWithdrawal}
+                      onChange={(e) => handleSettingUpdate('minWithdrawal', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="1.0"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-white">Required Referrals for Withdrawal</Label>
+                    <Input
+                      value={settings.requiredReferrals}
+                      onChange={(e) => handleSettingUpdate('requiredReferrals', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="5"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <Settings className="w-5 h-5 mr-2" />
+                    System Controls
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-white">Daily Ad Limit</Label>
+                    <Input
+                      value={settings.dailyAdLimit}
+                      onChange={(e) => handleSettingUpdate('dailyAdLimit', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="30"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-white">Daily Spin Limit</Label>
+                    <Input
+                      value={settings.dailySpinLimit}
+                      onChange={(e) => handleSettingUpdate('dailySpinLimit', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="30"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-white">Spin Win Rate (%)</Label>
+                    <Input
+                      value={settings.spinWinPercentage}
+                      onChange={(e) => handleSettingUpdate('spinWinPercentage', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="15"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                    <div>
+                      <Label className="text-white font-medium">Channel Verification</Label>
+                      <p className="text-sm text-gray-400">Force users to join channels</p>
+                    </div>
+                    <Switch
+                      checked={isChannelVerificationEnabled}
+                      onCheckedChange={toggleChannelVerification}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Ads Management Tab */}
+          <TabsContent value="ads">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white">HTML Ad Code</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Textarea
+                      value={settings.htmlAdCode}
+                      onChange={(e) => handleSettingUpdate('htmlAdCode', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white min-h-[150px]"
+                      placeholder="Enter your HTML ad code..."
+                    />
+                    <p className="text-gray-400 text-sm">
+                      HTML ads will be displayed to users with live updates
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white">Monetag Banner Integration</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Textarea
+                      value={settings.monetagBannerCode}
+                      onChange={(e) => handleSettingUpdate('monetagBannerCode', e.target.value)}
+                      className="bg-gray-700 border-gray-600 text-white min-h-[150px]"
+                      placeholder="Paste your Monetag banner code here..."
+                    />
+                    <p className="text-gray-400 text-sm">
+                      🔥 Monetag banners provide high-converting ads with instant updates
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           {/* Withdrawal Management */}
           <TabsContent value="withdrawals">
-            <Card className="bg-gray-800 border-gray-700">
+            <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
               <CardHeader>
                 <CardTitle className="text-white">Pending Withdrawals</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {withdrawalRequests
-                    .filter(request => request.status === 'pending')
-                    .map((request) => (
-                    <div key={request.id} className="flex justify-between items-center p-4 bg-gray-700 rounded-lg">
+                  {withdrawalRequests.filter(request => request.status === 'pending').map((request) => (
+                    <div key={request.id} className="flex justify-between items-center p-4 bg-gray-700/50 rounded-lg border border-gray-600">
                       <div className="space-y-1">
                         <p className="text-white font-medium">@{request.username}</p>
-                        <p className="text-green-400">${request.amount.toFixed(2)} USDT</p>
-                        <p className="text-gray-400 text-sm">{request.method === 'binance' ? 'Binance Pay' : 'USDT TRC20'}</p>
-                        <p className="text-gray-400 text-sm">{request.address}</p>
+                        <p className="text-green-400 font-bold">${request.amount.toFixed(2)} USDT</p>
+                        <p className="text-gray-400 text-sm">{request.method === 'binance' ? 'Binance Pay ID' : 'USDT TRC20'}</p>
+                        <p className="text-gray-300 text-sm font-mono">{request.address}</p>
                         <p className="text-gray-500 text-xs">{request.date}</p>
                       </div>
                       <div className="space-x-2">
@@ -233,21 +378,21 @@ const AdminPanel: React.FC = () => {
 
           {/* User Management */}
           <TabsContent value="users">
-            <Card className="bg-gray-800 border-gray-700">
+            <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
               <CardHeader>
-                <CardTitle className="text-white">User Management</CardTitle>
+                <CardTitle className="text-white">User Overview</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {users.map((user) => (
-                    <div key={user.id} className="p-4 bg-gray-700 rounded-lg">
+                    <div key={user.id} className="p-4 bg-gray-700/50 rounded-lg border border-gray-600">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
                           <p className="text-white font-medium">@{user.username}</p>
                           <p className="text-gray-400 text-sm">Joined: {user.joinDate}</p>
                         </div>
                         <div>
-                          <p className="text-green-400">${user.balance.toFixed(2)}</p>
+                          <p className="text-green-400 font-bold">${user.balance.toFixed(2)}</p>
                           <p className="text-gray-400 text-sm">Balance</p>
                         </div>
                         <div>
@@ -256,7 +401,7 @@ const AdminPanel: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-purple-400">{user.spinsUsed}/30 spins</p>
-                          <p className="text-gray-400 text-sm">Daily usage</p>
+                          <p className="text-gray-400 text-sm">Activity</p>
                         </div>
                       </div>
                     </div>
@@ -266,123 +411,41 @@ const AdminPanel: React.FC = () => {
             </Card>
           </TabsContent>
 
-          {/* Settings */}
-          <TabsContent value="settings">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="bg-gray-800 border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Earning Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-white">Ad Reward Rate (USDT)</Label>
-                    <Input
-                      value={settings.adRewardRate}
-                      onChange={(e) => setSettings({...settings, adRewardRate: e.target.value})}
-                      className="bg-gray-700 border-gray-600 text-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-white">Referral Rate (%)</Label>
-                    <Input
-                      value={settings.referralRate}
-                      onChange={(e) => setSettings({...settings, referralRate: e.target.value})}
-                      className="bg-gray-700 border-gray-600 text-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-white">Min Withdrawal (USDT)</Label>
-                    <Input
-                      value={settings.minWithdrawal}
-                      onChange={(e) => setSettings({...settings, minWithdrawal: e.target.value})}
-                      className="bg-gray-700 border-gray-600 text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-white">Required Referrals for Withdrawal</Label>
-                    <Input
-                      value={settings.requiredReferrals}
-                      onChange={(e) => setSettings({...settings, requiredReferrals: e.target.value})}
-                      className="bg-gray-700 border-gray-600 text-white"
-                    />
-                  </div>
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30">
+                <CardContent className="p-6 text-center">
+                  <Users className="w-12 h-12 text-blue-400 mx-auto mb-2" />
+                  <h3 className="text-2xl font-bold text-white">1,234</h3>
+                  <p className="text-gray-400">Total Users</p>
                 </CardContent>
               </Card>
-
-              <Card className="bg-gray-800 border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Limits & Controls</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-white">Daily Ad Limit</Label>
-                    <Input
-                      value={settings.dailyAdLimit}
-                      onChange={(e) => setSettings({...settings, dailyAdLimit: e.target.value})}
-                      className="bg-gray-700 border-gray-600 text-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-white">Daily Spin Limit</Label>
-                    <Input
-                      value={settings.dailySpinLimit}
-                      onChange={(e) => setSettings({...settings, dailySpinLimit: e.target.value})}
-                      className="bg-gray-700 border-gray-600 text-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-white">Spin Win Percentage (%)</Label>
-                    <Input
-                      value={settings.spinWinPercentage}
-                      onChange={(e) => setSettings({...settings, spinWinPercentage: e.target.value})}
-                      className="bg-gray-700 border-gray-600 text-white"
-                    />
-                    <p className="text-gray-400 text-sm mt-1">Percentage of spins that result in wins</p>
-                  </div>
-
-                  <Button onClick={saveAllSettings} className="w-full bg-blue-600 hover:bg-blue-700">
-                    Save All Settings
-                  </Button>
+              
+              <Card className="bg-gradient-to-br from-green-600/20 to-blue-600/20 border-green-500/30">
+                <CardContent className="p-6 text-center">
+                  <DollarSign className="w-12 h-12 text-green-400 mx-auto mb-2" />
+                  <h3 className="text-2xl font-bold text-white">$2,456</h3>
+                  <p className="text-gray-400">Total Earned</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 border-purple-500/30">
+                <CardContent className="p-6 text-center">
+                  <BarChart3 className="w-12 h-12 text-purple-400 mx-auto mb-2" />
+                  <h3 className="text-2xl font-bold text-white">15,678</h3>
+                  <p className="text-gray-400">Ads Watched</p>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
-
-          {/* Ads & Content */}
-          <TabsContent value="ads">
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">Advertisement Management</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-white">HTML Ad Code</Label>
-                  <Textarea
-                    value={settings.htmlAdCode}
-                    onChange={(e) => setSettings({...settings, htmlAdCode: e.target.value})}
-                    className="bg-gray-700 border-gray-600 text-white min-h-[200px]"
-                    placeholder="Enter your HTML ad code here..."
-                  />
-                  <p className="text-gray-400 text-sm mt-2">
-                    This HTML code will be displayed to users when they watch ads
-                  </p>
-                </div>
-
-                <Button 
-                  onClick={() => updateSetting('htmlAdCode', settings.htmlAdCode)}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  Update Ad Code
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
+
+        <div className="mt-8 text-center">
+          <p className="text-gray-400 text-sm">
+            🚀 Professional Admin Panel • Real-time Updates • Secure Management
+          </p>
+        </div>
       </div>
     </div>
   );

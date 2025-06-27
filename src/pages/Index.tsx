@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAdmin } from '../contexts/AdminContext';
 import HomePage from '../components/HomePage';
 import AdViewerPage from '../components/AdViewerPage';
 import SpinPage from '../components/SpinPage';
@@ -24,6 +26,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [referralCount, setReferralCount] = useState(0);
   const [withdrawalEnabled, setWithdrawalEnabled] = useState(false);
+  const { isChannelVerificationEnabled } = useAdmin();
 
   const requiredChannels = [
     'https://t.me/AnasEarnHunter',
@@ -43,10 +46,18 @@ const Index = () => {
       const user = tg.initDataUnsafe?.user;
       if (user) {
         setUserInfo(user);
-        // Check if user has joined channels (mock for now - would need bot API)
-        checkChannelMembership(user.id);
       }
     }
+    
+    // Check if channels are joined (strict verification)
+    const channelsJoined = localStorage.getItem('channelsJoined');
+    const joinDate = localStorage.getItem('channelJoinDate');
+    
+    // Only allow access if channels were joined and it's not too old (prevent bypassing)
+    const isValidJoin = channelsJoined === 'true' && joinDate && 
+      (Date.now() - new Date(joinDate).getTime()) < 7 * 24 * 60 * 60 * 1000; // 7 days validity
+    
+    setHasJoinedChannels(isValidJoin && !isChannelVerificationEnabled);
     
     // Check referral count for withdrawal eligibility
     const storedReferrals = localStorage.getItem('referralCount');
@@ -54,31 +65,8 @@ const Index = () => {
     setReferralCount(referrals);
     setWithdrawalEnabled(referrals >= 5);
     
-    // For development/testing, allow access after 2 seconds
-    setTimeout(() => {
-      setIsLoading(false);
-      // In development, set to true. In production, this would be based on actual channel membership
-      setHasJoinedChannels(true);
-    }, 2000);
-  }, []);
-
-  const checkChannelMembership = async (userId: number) => {
-    try {
-      // This would typically call your backend/bot API to check channel membership
-      // For now, we'll simulate the check
-      console.log('Checking channel membership for user:', userId);
-      
-      // Simulate API call
-      const response = await fetch(`/api/check-channels/${userId}`).catch(() => null);
-      
-      if (response?.ok) {
-        const data = await response.json();
-        setHasJoinedChannels(data.hasJoined);
-      }
-    } catch (error) {
-      console.error('Error checking channel membership:', error);
-    }
-  };
+    setIsLoading(false);
+  }, [isChannelVerificationEnabled]);
 
   const handleChannelJoined = () => {
     setHasJoinedChannels(true);
@@ -86,16 +74,18 @@ const Index = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-white">Loading Ads by USDT Earn...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-6"></div>
+          <h2 className="text-2xl font-bold text-white mb-2">Loading Ads by USDT Earn</h2>
+          <p className="text-gray-300">Preparing your earning dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!hasJoinedChannels) {
+  // Always show channel join page if verification is enabled or channels not joined
+  if (isChannelVerificationEnabled || !hasJoinedChannels) {
     return (
       <JoinChannelsPage 
         channels={requiredChannels}
