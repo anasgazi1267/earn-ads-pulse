@@ -4,18 +4,29 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign } from 'lucide-react';
+import { DollarSign, Users, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-const WithdrawPage: React.FC = () => {
+interface WithdrawPageProps {
+  withdrawalEnabled?: boolean;
+  referralCount?: number;
+}
+
+const WithdrawPage: React.FC<WithdrawPageProps> = ({ 
+  withdrawalEnabled = false, 
+  referralCount = 0 
+}) => {
   const [balance, setBalance] = useState(0);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [binancePayId, setBinancePayId] = useState('');
+  const [usdtAddress, setUsdtAddress] = useState('');
+  const [withdrawalMethod, setWithdrawalMethod] = useState('binance');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
   const { toast } = useToast();
 
   const minWithdraw = 1.0;
+  const requiredReferrals = 5;
 
   useEffect(() => {
     loadBalance();
@@ -28,27 +39,42 @@ const WithdrawPage: React.FC = () => {
   };
 
   const loadWithdrawalHistory = () => {
-    // This would load from Google Sheets API
-    // Mock data for now
-    setWithdrawalHistory([
-      {
-        id: '1',
-        amount: 5.00,
-        status: 'completed',
-        date: '2023-12-01',
-        binanceId: 'test123'
-      },
-      {
-        id: '2',
-        amount: 2.50,
-        status: 'pending',
-        date: '2023-12-15',
-        binanceId: 'test456'
-      }
-    ]);
+    const storedHistory = localStorage.getItem('withdrawalHistory');
+    if (storedHistory) {
+      setWithdrawalHistory(JSON.parse(storedHistory));
+    } else {
+      // Mock data for demonstration
+      setWithdrawalHistory([
+        {
+          id: '1',
+          amount: 5.00,
+          status: 'completed',
+          date: '2023-12-01',
+          method: 'binance',
+          address: 'test123'
+        },
+        {
+          id: '2',
+          amount: 2.50,
+          status: 'pending',
+          date: '2023-12-15',
+          method: 'usdt',
+          address: 'TXabc123...'
+        }
+      ]);
+    }
   };
 
   const handleWithdraw = async () => {
+    if (!withdrawalEnabled) {
+      toast({
+        title: "Withdrawal Disabled",
+        description: `You need ${requiredReferrals} successful referrals to enable withdrawals. Current: ${referralCount}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     const amount = parseFloat(withdrawAmount);
     
     if (!amount || amount < minWithdraw) {
@@ -69,10 +95,11 @@ const WithdrawPage: React.FC = () => {
       return;
     }
 
-    if (!binancePayId.trim()) {
+    const address = withdrawalMethod === 'binance' ? binancePayId : usdtAddress;
+    if (!address.trim()) {
       toast({
         title: "Missing Information",
-        description: "Please enter your Binance Pay ID",
+        description: `Please enter your ${withdrawalMethod === 'binance' ? 'Binance Pay ID' : 'USDT TRC20 Address'}`,
         variant: "destructive"
       });
       return;
@@ -81,30 +108,33 @@ const WithdrawPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // This would submit to Google Sheets API for admin approval
       const withdrawalRequest = {
         id: Date.now().toString(),
         amount: amount,
-        binancePayId: binancePayId,
+        method: withdrawalMethod,
+        address: address,
         status: 'pending',
         date: new Date().toISOString().split('T')[0],
-        userId: 'user123' // Would be actual user ID
+        userId: 'user123'
       };
 
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Update local balance (in real app, this would be handled after admin approval)
+      // Update local balance
       const newBalance = balance - amount;
       localStorage.setItem('balance', newBalance.toString());
       setBalance(newBalance);
 
       // Add to history
-      setWithdrawalHistory(prev => [withdrawalRequest, ...prev]);
+      const updatedHistory = [withdrawalRequest, ...withdrawalHistory];
+      setWithdrawalHistory(updatedHistory);
+      localStorage.setItem('withdrawalHistory', JSON.stringify(updatedHistory));
 
       // Clear form
       setWithdrawAmount('');
       setBinancePayId('');
+      setUsdtAddress('');
 
       toast({
         title: "Withdrawal Requested",
@@ -127,8 +157,17 @@ const WithdrawPage: React.FC = () => {
     switch (status) {
       case 'completed': return 'text-green-400';
       case 'pending': return 'text-yellow-400';
-      case 'rejected': return 'text-red-400';
+      case 'failed': return 'text-red-400';
       default: return 'text-gray-400';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed': return '✅';
+      case 'pending': return '⏳';
+      case 'failed': return '❌';
+      default: return '⏳';
     }
   };
 
@@ -139,10 +178,28 @@ const WithdrawPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-white mb-2">Withdraw Funds</h1>
         <div className="flex items-center justify-center space-x-2">
           <DollarSign className="w-6 h-6 text-green-400" />
-          <span className="text-2xl font-bold text-white">${balance.toFixed(2)}</span>
+          <span className="text-2xl font-bold text-green-400">${balance.toFixed(2)}</span>
           <span className="text-gray-400">Available</span>
         </div>
       </div>
+
+      {/* Referral Requirement Notice */}
+      {!withdrawalEnabled && (
+        <Card className="bg-red-900/20 border-red-500/50">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-6 h-6 text-red-400" />
+              <div>
+                <h3 className="text-red-400 font-semibold">Withdrawal Locked</h3>
+                <p className="text-gray-300 text-sm">
+                  Complete {requiredReferrals} referrals to unlock withdrawals. 
+                  Current: {referralCount}/{requiredReferrals}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Withdrawal Form */}
       <Card className="bg-gray-800 border-gray-700">
@@ -164,32 +221,75 @@ const WithdrawPage: React.FC = () => {
               min={minWithdraw}
               max={balance}
               step="0.01"
+              disabled={!withdrawalEnabled}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="binanceId" className="text-white">
-              Binance Pay ID
-            </Label>
-            <Input
-              id="binanceId"
-              type="text"
-              placeholder="Enter your Binance Pay ID"
-              value={binancePayId}
-              onChange={(e) => setBinancePayId(e.target.value)}
-              className="bg-gray-700 border-gray-600 text-white"
-            />
+            <Label className="text-white">Withdrawal Method</Label>
+            <div className="flex space-x-2">
+              <Button
+                type="button"
+                variant={withdrawalMethod === 'binance' ? 'default' : 'outline'}
+                onClick={() => setWithdrawalMethod('binance')}
+                className="flex-1"
+                disabled={!withdrawalEnabled}
+              >
+                Binance Pay
+              </Button>
+              <Button
+                type="button"
+                variant={withdrawalMethod === 'usdt' ? 'default' : 'outline'}
+                onClick={() => setWithdrawalMethod('usdt')}
+                className="flex-1"
+                disabled={!withdrawalEnabled}
+              >
+                USDT TRC20
+              </Button>
+            </div>
           </div>
+
+          {withdrawalMethod === 'binance' ? (
+            <div className="space-y-2">
+              <Label htmlFor="binanceId" className="text-white">
+                Binance Pay ID
+              </Label>
+              <Input
+                id="binanceId"
+                type="text"
+                placeholder="Enter your Binance Pay ID"
+                value={binancePayId}
+                onChange={(e) => setBinancePayId(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+                disabled={!withdrawalEnabled}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="usdtAddress" className="text-white">
+                USDT TRC20 Address
+              </Label>
+              <Input
+                id="usdtAddress"
+                type="text"
+                placeholder="Enter your USDT TRC20 wallet address"
+                value={usdtAddress}
+                onChange={(e) => setUsdtAddress(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+                disabled={!withdrawalEnabled}
+              />
+            </div>
+          )}
 
           <div className="text-sm text-gray-400 space-y-1">
             <p>• Withdrawals are processed within 24-48 hours</p>
             <p>• Admin approval is required for all withdrawals</p>
-            <p>• Make sure your Binance Pay ID is correct</p>
+            <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
           </div>
 
           <Button
             onClick={handleWithdraw}
-            disabled={isSubmitting || balance < minWithdraw}
+            disabled={isSubmitting || balance < minWithdraw || !withdrawalEnabled}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600"
           >
             {isSubmitting ? "Submitting..." : "Request Withdrawal"}
@@ -210,12 +310,16 @@ const WithdrawPage: React.FC = () => {
                   <div>
                     <p className="text-white font-medium">${withdrawal.amount.toFixed(2)}</p>
                     <p className="text-gray-400 text-sm">{withdrawal.date}</p>
+                    <p className="text-gray-400 text-xs">{withdrawal.method === 'binance' ? 'Binance Pay' : 'USDT TRC20'}</p>
                   </div>
                   <div className="text-right">
-                    <p className={`font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
-                      {withdrawal.status}
-                    </p>
-                    <p className="text-gray-400 text-sm">{withdrawal.binanceId}</p>
+                    <div className="flex items-center space-x-2">
+                      <span>{getStatusIcon(withdrawal.status)}</span>
+                      <p className={`font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
+                        {withdrawal.status}
+                      </p>
+                    </div>
+                    <p className="text-gray-400 text-xs">{withdrawal.address}</p>
                   </div>
                 </div>
               ))}
@@ -235,10 +339,11 @@ const WithdrawPage: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-gray-400">
           <p>• Minimum withdrawal amount: ${minWithdraw} USDT</p>
+          <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
           <p>• All withdrawals require admin approval</p>
           <p>• Processing time: 24-48 hours after approval</p>
-          <p>• Double-check your Binance Pay ID before submitting</p>
-          <p>• Rejected withdrawals will be refunded to your balance</p>
+          <p>• Supported methods: Binance Pay & USDT TRC20</p>
+          <p>• Double-check your wallet address before submitting</p>
         </CardContent>
       </Card>
     </div>

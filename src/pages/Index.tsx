@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from '../components/HomePage';
@@ -23,6 +22,8 @@ const Index = () => {
   const [hasJoinedChannels, setHasJoinedChannels] = useState<boolean>(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [referralCount, setReferralCount] = useState(0);
+  const [withdrawalEnabled, setWithdrawalEnabled] = useState(false);
 
   const requiredChannels = [
     'https://t.me/AnasEarnHunter',
@@ -46,6 +47,12 @@ const Index = () => {
         checkChannelMembership(user.id);
       }
     }
+    
+    // Check referral count for withdrawal eligibility
+    const storedReferrals = localStorage.getItem('referralCount');
+    const referrals = parseInt(storedReferrals || '0');
+    setReferralCount(referrals);
+    setWithdrawalEnabled(referrals >= 5);
     
     // For development/testing, allow access after 2 seconds
     setTimeout(() => {
@@ -101,11 +108,11 @@ const Index = () => {
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="pb-20">
         <Routes>
-          <Route path="/" element={<HomePage userInfo={userInfo} />} />
+          <Route path="/" element={<HomePage userInfo={userInfo} referralCount={referralCount} />} />
           <Route path="/ads" element={<AdViewerPage />} />
           <Route path="/spin" element={<SpinPage />} />
           <Route path="/referral" element={<ReferralPage userInfo={userInfo} />} />
-          <Route path="/withdraw" element={<WithdrawPage />} />
+          <Route path="/withdraw" element={<WithdrawPage withdrawalEnabled={withdrawalEnabled} referralCount={referralCount} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
