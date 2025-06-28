@@ -20,21 +20,21 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
   const channelInfo = [
     {
       url: 'https://t.me/AnasEarnHunter',
-      name: 'AnasEarnHunter',
+      name: 'Anas Earn Hunter',
       description: 'Premium Earning Opportunities',
       image: '/lovable-uploads/ee5a5260-f02b-4a99-b6b5-139e89cf3261.png',
       subscribers: '15K+'
     },
     {
       url: 'https://t.me/ExpossDark',
-      name: 'ExpossDark',
+      name: 'Exposs Dark',
       description: 'Dark Web & Security Tips',
       image: '/lovable-uploads/4e3fe131-80b5-4522-8e01-86c7d4a52f0b.png',
       subscribers: '8K+'
     },
     {
       url: 'https://t.me/TechnicalAnas',
-      name: 'TechnicalAnas',
+      name: 'Technical Anas',
       description: 'Technical Tutorials & Tips',
       image: '/lovable-uploads/cf2c5d17-4c7b-49a0-8d98-7b0a557f35b1.png',
       subscribers: '12K+'
@@ -54,8 +54,8 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
     setTimeout(() => {
       setJoinedChannels(prev => new Set([...prev, channel]));
       toast({
-        title: "চ্যানেল খোলা হয়েছে",
-        description: "দয়া করে চ্যানেলে জয়েন করে ফিরে আসুন",
+        title: "Channel Opened",
+        description: "Please join the channel and come back",
       });
     }, 1000);
   };
@@ -63,8 +63,8 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
   const handleVerifyJoin = async () => {
     if (joinedChannels.size < channels.length) {
       toast({
-        title: "অসম্পূর্ণ",
-        description: `দয়া করে প্রথমে সব ${channels.length}টি চ্যানেলে জয়েন করুন`,
+        title: "Incomplete",
+        description: `Please join all ${channels.length} channels first`,
         variant: "destructive"
       });
       return;
@@ -77,8 +77,8 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
         setVerifying(false);
         setHasVerified(true);
         toast({
-          title: "আবার চেষ্টা করুন",
-          description: "ভেরিফিকেশন সম্পূর্ণ করতে আবার ক্লিক করুন",
+          title: "Try Again",
+          description: "Click verify again to complete verification",
           variant: "default"
         });
       }, 3000);
@@ -93,14 +93,14 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
       setVerifying(false);
       onChannelsJoined();
       toast({
-        title: "সফল!",
-        description: "সব চ্যানেল ভেরিফাই হয়েছে। Ads by USDT Earn এ স্বাগতম!",
+        title: "Success!",
+        description: "All channels verified. Welcome to Ads by USDT Earn!",
       });
     }, 2500);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-10 -left-10 w-72 h-72 bg-blue-500/10 rounded-full animate-pulse"></div>
@@ -108,132 +108,100 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
         <div className="absolute -bottom-10 left-1/2 w-80 h-80 bg-pink-500/10 rounded-full animate-pulse delay-2000"></div>
       </div>
 
-      <Card className="w-full max-w-2xl bg-gray-900/95 backdrop-blur-xl border-gray-700/50 shadow-2xl relative z-10">
-        <CardHeader className="text-center pb-8 relative">
-          {/* Header decoration */}
-          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/30">
-              <Crown className="w-8 h-8 text-white" />
-            </div>
-          </div>
-          
-          <div className="mt-8 mb-6">
-            <CardTitle className="text-4xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 bg-clip-text text-transparent mb-4">
-              প্রিমিয়াম চ্যানেল জয়েন
-            </CardTitle>
-            <p className="text-gray-300 text-lg leading-relaxed">
-              আর্নিং ফিচার আনলক করতে সব ৪টি চ্যানেলে জয়েন করুন
-            </p>
-          </div>
-          
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-xl p-4 border border-blue-500/30 backdrop-blur-sm">
-            <div className="flex items-center justify-center space-x-2 mb-2">
-              <Star className="w-5 h-5 text-yellow-400 animate-pulse" />
-              <p className="text-blue-300 text-sm font-semibold">
-                বাধ্যতামূলক: সব চ্যানেলে জয়েন আবশ্যক
-              </p>
-              <Star className="w-5 h-5 text-yellow-400 animate-pulse" />
-            </div>
-            <p className="text-xs text-gray-400">
-              ভেরিফিকেশনের জন্য দুইবার ক্লিক করতে হবে
-            </p>
-          </div>
-        </CardHeader>
+      <Card className="w-full max-w-md bg-gray-900/95 backdrop-blur-xl border-gray-700/50 shadow-2xl relative z-10 rounded-3xl overflow-hidden">
+        {/* Header */}
+        <div className="text-center py-8 px-6">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 bg-clip-text text-transparent mb-3">
+            Ads by USDT Earn
+          </h1>
+          <p className="text-gray-300 text-lg">
+            Join all 4 channels to start earning
+          </p>
+        </div>
         
-        <CardContent className="space-y-6 px-8 pb-8">
-          {/* Channels Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <CardContent className="space-y-4 px-6 pb-8">
+          {/* Channels List */}
+          <div className="space-y-4">
             {channelInfo.map((channel, index) => (
-              <div key={index} className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-800/80 to-gray-700/80 backdrop-blur-sm border border-gray-600/50 hover:border-blue-500/50 transition-all duration-500 hover:scale-105 hover:shadow-xl hover:shadow-blue-500/20">
-                {/* Channel image background with overlay */}
-                <div className="relative h-32 overflow-hidden rounded-t-2xl">
-                  <img 
-                    src={channel.image} 
-                    alt={channel.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent"></div>
-                  
-                  {/* Subscriber count badge */}
-                  <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm rounded-full px-3 py-1">
-                    <span className="text-xs text-white font-medium">{channel.subscribers}</span>
-                  </div>
-                  
-                  {/* Join status indicator */}
+              <div key={index} className="flex items-center space-x-4 p-4 bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-600/30 hover:border-blue-500/50 transition-all duration-300">
+                {/* Join Status Circle */}
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                  joinedChannels.has(channel.url) 
+                    ? 'bg-green-500 border-green-500' 
+                    : 'border-gray-400'
+                }`}>
                   {joinedChannels.has(channel.url) && (
-                    <div className="absolute top-3 left-3 bg-green-500/90 backdrop-blur-sm rounded-full p-2 animate-bounce">
-                      <CheckCircle className="w-4 h-4 text-white" />
-                    </div>
+                    <CheckCircle className="w-4 h-4 text-white" />
                   )}
                 </div>
 
-                {/* Channel info */}
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-white font-bold text-lg">@{channel.name}</h3>
-                      <p className="text-gray-400 text-sm">{channel.description}</p>
-                    </div>
-                  </div>
-                  
-                  <Button
-                    onClick={() => handleChannelClick(channel.url)}
-                    size="sm"
-                    className={`w-full transition-all duration-300 ${
-                      joinedChannels.has(channel.url)
-                        ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg shadow-green-600/30"
-                        : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-600/30"
-                    }`}
-                  >
-                    {joinedChannels.has(channel.url) ? (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        খোলা হয়েছে
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        এখনই জয়েন করুন
-                      </>
-                    )}
-                  </Button>
+                {/* Channel Image */}
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700">
+                  <img 
+                    src={channel.image} 
+                    alt={channel.name}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
+
+                {/* Channel Info */}
+                <div className="flex-1">
+                  <h3 className="text-white font-semibold text-sm">{channel.name}</h3>
+                  <p className="text-gray-400 text-xs">{channel.description}</p>
+                </div>
+
+                {/* Join Button */}
+                <Button
+                  onClick={() => handleChannelClick(channel.url)}
+                  size="sm"
+                  className={`px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                    joinedChannels.has(channel.url)
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "bg-blue-600 hover:bg-blue-700 text-white"
+                  }`}
+                >
+                  {joinedChannels.has(channel.url) ? (
+                    "Joined"
+                  ) : (
+                    <>
+                      Join <ExternalLink className="w-3 h-3 ml-1" />
+                    </>
+                  )}
+                </Button>
               </div>
             ))}
           </div>
 
-          {/* Progress Section */}
-          <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-600/30">
-            <div className="text-center mb-6">
-              <h3 className="text-white text-xl font-bold mb-2">
-                অগ্রগতি: {joinedChannels.size}/{channels.length} চ্যানেল
-              </h3>
-              <div className="w-full bg-gray-700/50 rounded-full h-4 overflow-hidden">
+          {/* Progress Bar */}
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-600/30">
+            <div className="text-center mb-4">
+              <p className="text-white text-sm font-medium">
+                Progress: {joinedChannels.size}/{channels.length} channels
+              </p>
+              <div className="w-full bg-gray-700/50 rounded-full h-2 mt-2">
                 <div 
-                  className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-4 rounded-full transition-all duration-1000 relative overflow-hidden"
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-1000"
                   style={{ width: `${(joinedChannels.size / channels.length) * 100}%` }}
-                >
-                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                </div>
+                ></div>
               </div>
             </div>
 
             <Button
               onClick={handleVerifyJoin}
               disabled={joinedChannels.size < channels.length || verifying}
-              className="w-full h-16 text-lg font-bold bg-gradient-to-r from-emerald-600 via-blue-600 to-purple-600 hover:from-emerald-700 hover:via-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 shadow-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
+              className="w-full h-12 text-base font-bold bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300"
             >
               {verifying ? (
                 <>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
-                  {hasVerified ? 'চূড়ান্ত ভেরিফিকেশন...' : 'চ্যানেল যাচাই করা হচ্ছে...'}
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  {hasVerified ? 'Final Verification...' : 'Verifying Channels...'}
                 </>
               ) : joinedChannels.size < channels.length ? (
-                `আরও ${channels.length - joinedChannels.size}টি চ্যানেলে জয়েন করুন`
+                `Join ${channels.length - joinedChannels.size} more channels`
               ) : hasVerified ? (
-                'সম্পূর্ণ করুন ও অ্যাপে প্রবেশ করুন'
+                'Complete & Enter App'
               ) : (
-                'ভেরিফাই করুন ও চালিয়ে যান'
+                'Verify & Continue'
               )}
             </Button>
           </div>
@@ -241,14 +209,14 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
           {/* Security Notice */}
           <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 backdrop-blur-sm rounded-xl p-4 border border-indigo-500/30">
             <div className="flex items-start space-x-3">
-              <div className="w-8 h-8 bg-indigo-500/20 rounded-full flex items-center justify-center mt-1">
-                <Users className="w-4 h-4 text-indigo-400" />
+              <div className="w-6 h-6 bg-indigo-500/20 rounded-full flex items-center justify-center mt-1">
+                <Users className="w-3 h-3 text-indigo-400" />
               </div>
               <div>
-                <p className="text-sm text-indigo-300 font-medium mb-1">🔒 নিরাপত্তা তথ্য</p>
+                <p className="text-xs text-indigo-300 font-medium mb-1">🔒 Security Info</p>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  আর্নিং ফিচার ব্যবহারের জন্য আপনাকে অবশ্যই সব {channels.length}টি চ্যানেলে জয়েন করতে হবে। 
-                  এই যাচাইকরণ স্প্যাম প্রতিরোধ করে এবং সত্যিকারের ব্যবহারকারীদের নিশ্চিত করে।
+                  You must join all {channels.length} channels to use earning features. 
+                  This verification prevents spam and ensures genuine users.
                 </p>
               </div>
             </div>

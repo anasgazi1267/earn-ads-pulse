@@ -49,15 +49,13 @@ const Index = () => {
       }
     }
     
-    // Check if channels are joined (strict verification)
+    // Check if channels are joined
     const channelsJoined = localStorage.getItem('channelsJoined');
     const joinDate = localStorage.getItem('channelJoinDate');
     
-    // Only allow access if channels were joined and it's not too old (prevent bypassing)
-    const isValidJoin = channelsJoined === 'true' && joinDate && 
-      (Date.now() - new Date(joinDate).getTime()) < 7 * 24 * 60 * 60 * 1000; // 7 days validity
-    
-    setHasJoinedChannels(isValidJoin && !isChannelVerificationEnabled);
+    // Check if user has joined channels (and bypass if admin disabled verification)
+    const hasJoined = channelsJoined === 'true' && joinDate;
+    setHasJoinedChannels(hasJoined || !isChannelVerificationEnabled);
     
     // Check referral count for withdrawal eligibility
     const storedReferrals = localStorage.getItem('referralCount');
@@ -84,8 +82,8 @@ const Index = () => {
     );
   }
 
-  // Always show channel join page if verification is enabled or channels not joined
-  if (isChannelVerificationEnabled || !hasJoinedChannels) {
+  // Show channel join page if verification is enabled and channels not joined
+  if (isChannelVerificationEnabled && !hasJoinedChannels) {
     return (
       <JoinChannelsPage 
         channels={requiredChannels}
