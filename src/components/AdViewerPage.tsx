@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Clock, Eye } from 'lucide-react';
+import { DollarSign, Clock, Eye, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAdmin } from '../contexts/AdminContext';
 
@@ -19,6 +19,7 @@ const AdViewerPage: React.FC = () => {
   const [canEarn, setCanEarn] = useState(false);
   const [adsWatchedToday, setAdsWatchedToday] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasClickedAd, setHasClickedAd] = useState(false);
   const { toast } = useToast();
   const { settings } = useAdmin();
 
@@ -50,7 +51,6 @@ const AdViewerPage: React.FC = () => {
   }, [countdown, currentAd]);
 
   const loadTodayStats = () => {
-    // Load from localStorage or API
     const today = new Date().toDateString();
     const stored = localStorage.getItem(`ads_watched_${today}`);
     setAdsWatchedToday(parseInt(stored || '0'));
@@ -58,26 +58,28 @@ const AdViewerPage: React.FC = () => {
 
   const loadNextAd = async () => {
     setIsLoading(true);
+    setHasClickedAd(false);
     try {
       const mockAds: Ad[] = [
         {
           id: '1',
           type: 'image',
           content: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop',
-          link: 'https://example.com',
+          link: 'https://otieu.com/4/9498111',
           reward: adReward
         },
         {
           id: '2',
           type: 'html',
           content: settings.htmlAdCode || '<div style="background: linear-gradient(45deg, #FF6B6B, #4ECDC4); padding: 40px; text-align: center; color: white; border-radius: 10px;"><h2>Special Offer!</h2><p>Get 50% off your next purchase</p></div>',
-          link: 'https://example.com/offer',
+          link: 'https://otieu.com/4/9498111',
           reward: adReward
         },
         {
           id: '3',
           type: 'monetag',
           content: settings.monetagBannerCode || '',
+          link: 'https://otieu.com/4/9498111',
           reward: adReward
         }
       ];
@@ -98,8 +100,28 @@ const AdViewerPage: React.FC = () => {
     }
   };
 
+  const handleAdClick = () => {
+    if (currentAd?.link) {
+      window.open(currentAd.link, '_blank');
+      setHasClickedAd(true);
+      toast({
+        title: "Ad Clicked!",
+        description: "You must click the ad to earn rewards",
+      });
+    }
+  };
+
   const handleEarnNow = async () => {
     if (!currentAd || !canEarn) return;
+
+    if (!hasClickedAd) {
+      toast({
+        title: "Click Required",
+        description: "You must click on the advertisement first!",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       const today = new Date().toDateString();
@@ -115,10 +137,6 @@ const AdViewerPage: React.FC = () => {
         title: "Earned!",
         description: `You earned $${currentAd.reward.toFixed(3)} USDT`,
       });
-
-      if (currentAd.link) {
-        window.open(currentAd.link, '_blank');
-      }
 
       if (newCount < maxAdsPerDay) {
         setTimeout(() => {
@@ -192,31 +210,73 @@ const AdViewerPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-gray-700 rounded-lg p-4 min-h-[250px] flex items-center justify-center">
+            <div 
+              className="bg-gray-700 rounded-lg p-4 min-h-[250px] flex items-center justify-center cursor-pointer hover:bg-gray-600 transition-colors"
+              onClick={handleAdClick}
+            >
               {currentAd.type === 'image' ? (
-                <img 
-                  src={currentAd.content} 
-                  alt="Advertisement" 
-                  className="max-w-full max-h-full rounded-lg"
-                />
+                <div className="text-center">
+                  <img 
+                    src={currentAd.content} 
+                    alt="Advertisement" 
+                    className="max-w-full max-h-[200px] rounded-lg mb-4"
+                  />
+                  <Button
+                    onClick={handleAdClick}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Click Here
+                  </Button>
+                </div>
               ) : currentAd.type === 'monetag' ? (
-                <div className="w-full">
+                <div className="w-full text-center">
                   {settings.monetagBannerCode ? (
-                    <div dangerouslySetInnerHTML={{ __html: settings.monetagBannerCode }} />
+                    <div>
+                      <div dangerouslySetInnerHTML={{ __html: settings.monetagBannerCode }} />
+                      <Button
+                        onClick={handleAdClick}
+                        className="bg-blue-600 hover:bg-blue-700 mt-4"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Click Here
+                      </Button>
+                    </div>
                   ) : (
-                    <div className="text-center text-gray-400 p-8">
-                      <p>Monetag Banner Ad</p>
-                      <p className="text-sm mt-2">Configure in Admin Panel</p>
+                    <div>
+                      <p className="text-gray-400 p-8">Monetag Banner Ad</p>
+                      <Button
+                        onClick={handleAdClick}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Click Here
+                      </Button>
                     </div>
                   )}
                 </div>
               ) : (
-                <div 
-                  dangerouslySetInnerHTML={{ __html: currentAd.content }}
-                  className="w-full"
-                />
+                <div className="w-full text-center">
+                  <div 
+                    dangerouslySetInnerHTML={{ __html: currentAd.content }}
+                    className="w-full mb-4"
+                  />
+                  <Button
+                    onClick={handleAdClick}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Click Here
+                  </Button>
+                </div>
               )}
             </div>
+
+            {!hasClickedAd && (
+              <div className="text-center bg-yellow-500/20 rounded-lg p-3 border border-yellow-500/30">
+                <p className="text-yellow-300 text-sm">⚠️ Click on the advertisement above to proceed</p>
+              </div>
+            )}
 
             {countdown > 0 && (
               <div className="text-center bg-orange-500/20 rounded-lg p-4 border border-orange-500/30">
@@ -230,14 +290,16 @@ const AdViewerPage: React.FC = () => {
 
             <Button
               onClick={handleEarnNow}
-              disabled={!canEarn}
+              disabled={!canEarn || !hasClickedAd}
               className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300"
             >
-              {canEarn ? (
+              {canEarn && hasClickedAd ? (
                 <>
                   <DollarSign className="w-5 h-5 mr-2" />
                   Earn ${currentAd.reward.toFixed(3)} Now
                 </>
+              ) : !hasClickedAd ? (
+                'Click Advertisement First'
               ) : (
                 'Please Wait...'
               )}
@@ -246,7 +308,7 @@ const AdViewerPage: React.FC = () => {
         </Card>
       ) : null}
 
-      {canEarn && (
+      {canEarn && hasClickedAd && (
         <Button
           onClick={loadNextAd}
           variant="outline"

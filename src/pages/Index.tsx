@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
@@ -49,17 +48,17 @@ const Index = () => {
       }
     }
     
-    // Check if channels are joined
+    // Check if channels are joined with proper type conversion
     const channelsJoined = localStorage.getItem('channelsJoined');
     const joinDate = localStorage.getItem('channelJoinDate');
     
-    // Check if user has joined channels (and bypass if admin disabled verification)
-    const hasJoined = channelsJoined === 'true' && joinDate;
+    // Convert string to boolean properly
+    const hasJoined = (channelsJoined === 'true') && Boolean(joinDate);
     setHasJoinedChannels(hasJoined || !isChannelVerificationEnabled);
     
-    // Check referral count for withdrawal eligibility
+    // Check referral count for withdrawal eligibility with proper type conversion
     const storedReferrals = localStorage.getItem('referralCount');
-    const referrals = parseInt(storedReferrals || '0');
+    const referrals = storedReferrals ? parseInt(storedReferrals, 10) : 0;
     setReferralCount(referrals);
     setWithdrawalEnabled(referrals >= 5);
     
