@@ -9,7 +9,128 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      admin_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          setting_key: string
+          setting_value: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          setting_key: string
+          setting_value: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          ads_watched_today: number | null
+          balance: number | null
+          channel_join_date: string | null
+          channels_joined: boolean | null
+          created_at: string | null
+          first_name: string | null
+          id: string
+          last_activity_date: string | null
+          last_name: string | null
+          referral_count: number | null
+          spins_used_today: number | null
+          telegram_id: string
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          ads_watched_today?: number | null
+          balance?: number | null
+          channel_join_date?: string | null
+          channels_joined?: boolean | null
+          created_at?: string | null
+          first_name?: string | null
+          id?: string
+          last_activity_date?: string | null
+          last_name?: string | null
+          referral_count?: number | null
+          spins_used_today?: number | null
+          telegram_id: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          ads_watched_today?: number | null
+          balance?: number | null
+          channel_join_date?: string | null
+          channels_joined?: boolean | null
+          created_at?: string | null
+          first_name?: string | null
+          id?: string
+          last_activity_date?: string | null
+          last_name?: string | null
+          referral_count?: number | null
+          spins_used_today?: number | null
+          telegram_id?: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      withdrawal_requests: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          status: string | null
+          telegram_id: string
+          updated_at: string | null
+          user_id: string | null
+          username: string
+          wallet_address: string
+          withdrawal_method: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          status?: string | null
+          telegram_id: string
+          updated_at?: string | null
+          user_id?: string | null
+          username: string
+          wallet_address: string
+          withdrawal_method: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          status?: string | null
+          telegram_id?: string
+          updated_at?: string | null
+          user_id?: string | null
+          username?: string
+          wallet_address?: string
+          withdrawal_method?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawal_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

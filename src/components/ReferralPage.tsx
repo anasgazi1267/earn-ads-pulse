@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,13 +25,13 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo }) => {
 
   const generateReferralLink = () => {
     if (userInfo?.id) {
-      const link = `https://t.me/YourBotName?start=ref_${userInfo.id}`;
+      const link = `https://t.me/Ads_Usdt_earn_bot?start=ref_${userInfo.id}`;
       setReferralLink(link);
     }
   };
 
   const loadReferralStats = () => {
-    // This would load from Google Sheets API
+    // This would load from Supabase
     // Mock data for now
     setReferralStats({
       totalReferrals: 5,
