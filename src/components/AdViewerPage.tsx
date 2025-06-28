@@ -1,19 +1,31 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Clock, Eye, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAdmin } from '../contexts/AdminContext';
+import { dbService } from '../services/database';
 
 interface Ad {
   id: string;
   type: 'image' | 'html' | 'monetag';
   content: string;
-  link?: string;
+  link: string;
   reward: number;
 }
 
-const AdViewerPage: React.FC = () => {
+interface AdViewerPageProps {
+  userInfo: any;
+  userBalance: number;
+  updateUserBalance: (newBalance: number) => void;
+}
+
+const AdViewerPage: React.FC<AdViewerPageProps> = ({ 
+  userInfo, 
+  userBalance, 
+  updateUserBalance 
+}) => {
   const [currentAd, setCurrentAd] = useState<Ad | null>(null);
   const [countdown, setCountdown] = useState(15);
   const [canEarn, setCanEarn] = useState(false);
@@ -50,10 +62,17 @@ const AdViewerPage: React.FC = () => {
     }
   }, [countdown, currentAd]);
 
-  const loadTodayStats = () => {
-    const today = new Date().toDateString();
-    const stored = localStorage.getItem(`ads_watched_${today}`);
-    setAdsWatchedToday(parseInt(stored || '0'));
+  const loadTodayStats = async () => {
+    if (userInfo) {
+      try {
+        const user = await dbService.getUserByTelegramId(userInfo.id.toString());
+        if (user) {
+          setAdsWatchedToday(user.ads_watched_today);
+        }
+      } catch (error) {
+        console.error('Error loading today stats:', error);
+      }
+    }
   };
 
   const loadNextAd = async () => {
@@ -112,7 +131,7 @@ const AdViewerPage: React.FC = () => {
   };
 
   const handleEarnNow = async () => {
-    if (!currentAd || !canEarn) return;
+    if (!currentAd || !canEarn || !userInfo) return;
 
     if (!hasClickedAd) {
       toast({
@@ -124,24 +143,31 @@ const AdViewerPage: React.FC = () => {
     }
 
     try {
-      const today = new Date().toDateString();
-      const newCount = adsWatchedToday + 1;
-      localStorage.setItem(`ads_watched_${today}`, newCount.toString());
-      setAdsWatchedToday(newCount);
+      // Update user's ads watched count in database
+      const user = await dbService.getUserByTelegramId(userInfo.id.toString());
+      if (user) {
+        const newAdsWatched = user.ads_watched_today + 1;
+        
+        // Log the activity
+        await dbService.logActivity(userInfo.id.toString(), 'ad_watch', currentAd.reward);
+        
+        // Update balance
+        const newBalance = userBalance + currentAd.reward;
+        updateUserBalance(newBalance);
 
-      const currentBalance = parseFloat(localStorage.getItem('balance') || '0');
-      const newBalance = currentBalance + currentAd.reward;
-      localStorage.setItem('balance', newBalance.toString());
+        // Update ads watched count
+        setAdsWatchedToday(newAdsWatched);
 
-      toast({
-        title: "Earned!",
-        description: `You earned $${currentAd.reward.toFixed(3)} USDT`,
-      });
+        toast({
+          title: "Earned!",
+          description: `You earned $${currentAd.reward.toFixed(3)} USDT`,
+        });
 
-      if (newCount < maxAdsPerDay) {
-        setTimeout(() => {
-          loadNextAd();
-        }, 2000);
+        if (newAdsWatched < maxAdsPerDay) {
+          setTimeout(() => {
+            loadNextAd();
+          }, 2000);
+        }
       }
     } catch (error) {
       console.error('Error processing earning:', error);
@@ -181,7 +207,7 @@ const AdViewerPage: React.FC = () => {
         </h1>
         <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
           <p className="text-gray-400">
-            Progress: <span className="text-green-400 font-semibold">{adsWatchedToday}/{maxAdsPerDay}</span> ads today
+            Progress: <span className="text-green-400 font-semibold">{adsWatchedToday}/{maxAdsPerday}</span> ads today
           </p>
           <p className="text-sm text-gray-500 mt-1">
             Earn ${adReward.toFixed(3)} USDT per ad

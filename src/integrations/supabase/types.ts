@@ -33,6 +33,57 @@ export type Database = {
         }
         Relationships: []
       }
+      referrals: {
+        Row: {
+          created_at: string | null
+          earnings: number | null
+          id: string
+          referred_telegram_id: string
+          referrer_telegram_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          earnings?: number | null
+          id?: string
+          referred_telegram_id: string
+          referrer_telegram_id: string
+        }
+        Update: {
+          created_at?: string | null
+          earnings?: number | null
+          id?: string
+          referred_telegram_id?: string
+          referrer_telegram_id?: string
+        }
+        Relationships: []
+      }
+      user_activities: {
+        Row: {
+          activity_date: string | null
+          activity_type: string
+          amount: number | null
+          created_at: string | null
+          id: string
+          telegram_id: string
+        }
+        Insert: {
+          activity_date?: string | null
+          activity_type: string
+          amount?: number | null
+          created_at?: string | null
+          id?: string
+          telegram_id: string
+        }
+        Update: {
+          activity_date?: string | null
+          activity_type?: string
+          amount?: number | null
+          created_at?: string | null
+          id?: string
+          telegram_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           ads_watched_today: number | null
@@ -45,6 +96,7 @@ export type Database = {
           last_activity_date: string | null
           last_name: string | null
           referral_count: number | null
+          referred_by: string | null
           spins_used_today: number | null
           telegram_id: string
           updated_at: string | null
@@ -61,6 +113,7 @@ export type Database = {
           last_activity_date?: string | null
           last_name?: string | null
           referral_count?: number | null
+          referred_by?: string | null
           spins_used_today?: number | null
           telegram_id: string
           updated_at?: string | null
@@ -77,6 +130,7 @@ export type Database = {
           last_activity_date?: string | null
           last_name?: string | null
           referral_count?: number | null
+          referred_by?: string | null
           spins_used_today?: number | null
           telegram_id?: string
           updated_at?: string | null
@@ -92,7 +146,6 @@ export type Database = {
           status: string | null
           telegram_id: string
           updated_at: string | null
-          user_id: string | null
           username: string
           wallet_address: string
           withdrawal_method: string
@@ -104,7 +157,6 @@ export type Database = {
           status?: string | null
           telegram_id: string
           updated_at?: string | null
-          user_id?: string | null
           username: string
           wallet_address: string
           withdrawal_method: string
@@ -116,20 +168,11 @@ export type Database = {
           status?: string | null
           telegram_id?: string
           updated_at?: string | null
-          user_id?: string | null
           username?: string
           wallet_address?: string
           withdrawal_method?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "withdrawal_requests_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {

@@ -8,11 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useAdmin } from '../contexts/AdminContext';
+import { dbService, WithdrawalRequest } from '../services/database';
 import { Settings, Users, DollarSign, BarChart3, Globe, Shield, Eye, EyeOff } from 'lucide-react';
 
 const AdminPanel: React.FC = () => {
-  const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [adminId, setAdminId] = useState('');
   const [showAdminId, setShowAdminId] = useState(false);
@@ -29,15 +29,18 @@ const AdminPanel: React.FC = () => {
         loadAdminData();
       }
     }
-
-    // Listen for real-time updates from user actions
-    const handleUserActivity = () => {
-      loadAdminData();
-    };
-
-    window.addEventListener('userActivity', handleUserActivity);
-    return () => window.removeEventListener('userActivity', handleUserActivity);
   }, []);
+
+  useEffect(() => {
+    if (isAuthorized) {
+      // Subscribe to real-time withdrawal updates
+      const unsubscribe = dbService.subscribeToWithdrawals((withdrawals) => {
+        setWithdrawalRequests(withdrawals);
+      });
+
+      return unsubscribe;
+    }
+  }, [isAuthorized]);
 
   const handleAdminLogin = () => {
     if (adminId === ADMIN_TELEGRAM_ID) {
@@ -56,100 +59,79 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const loadAdminData = () => {
-    // Load real data from localStorage
-    const realUsers = [];
-    const realWithdrawals = [];
-    
-    // Get all users from activity
-    const keys = Object.keys(localStorage);
-    const userIds = new Set();
-    
-    keys.forEach(key => {
-      if (key.startsWith('ads_watched_') || key.startsWith('balance_') || key.startsWith('referrals_')) {
-        // Extract user data
-      }
-    });
-
-    // Mock data for demonstration - in production this would load from your backend
-    setWithdrawalRequests([
-      {
-        id: '1',
-        userId: 'user123',
-        username: 'JohnDoe',
-        amount: 5.00,
-        method: 'binance',
-        address: 'binance123',
-        status: 'pending',
-        date: '2023-12-20'
-      },
-      {
-        id: '2',
-        userId: 'user456',
-        username: 'JaneSmith',
-        amount: 10.00,
-        method: 'usdt',
-        address: 'TXabc123...',
-        status: 'pending', 
-        date: '2023-12-21'
-      }
-    ]);
-
-    setUsers([
-      {
-        id: 'user123',
-        username: 'JohnDoe',
-        balance: parseFloat(localStorage.getItem('balance') || '0'),
-        referrals: parseInt(localStorage.getItem('referralCount') || '0'),
-        adsWatched: parseInt(localStorage.getItem(`ads_watched_${new Date().toDateString()}`) || '0'),
-        spinsUsed: parseInt(localStorage.getItem(`spins_used_${new Date().toDateString()}`) || '0'),
-        joinDate: localStorage.getItem('channelJoinDate') || '2023-12-01'
-      }
-    ]);
+  const loadAdminData = async () => {
+    try {
+      const withdrawals = await dbService.getWithdrawalRequests();
+      setWithdrawalRequests(withdrawals);
+    } catch (error) {
+      console.error('Error loading admin data:', error);
+    }
   };
 
-  const handleWithdrawalAction = (withdrawalId: string, action: 'approve' | 'reject') => {
-    setWithdrawalRequests(prev => 
-      prev.map(request => 
-        request.id === withdrawalId 
-          ? { ...request, status: action === 'approve' ? 'completed' : 'failed' }
-          : request
-      )
-    );
-
-    toast({
-      title: `Withdrawal ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-      description: `Request processed successfully`,
-    });
+  const handleWithdrawalAction = async (withdrawalId: string, action: 'approve' | 'reject') => {
+    try {
+      const status = action === 'approve' ? 'completed' : 'rejected';
+      const success = await dbService.updateWithdrawalStatus(withdrawalId, status);
+      
+      if (success) {
+        toast({
+          title: `Withdrawal ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+          description: `Request processed successfully`,
+        });
+        
+        // Reload withdrawal data
+        loadAdminData();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update withdrawal request",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error updating withdrawal:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process withdrawal request",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleSettingUpdate = (key: string, value: string) => {
-    updateSettings({ [key]: value });
-    
-    // Dispatch event for real-time updates across the app
-    window.dispatchEvent(new CustomEvent('adminSettingsUpdated', { 
-      detail: { [key]: value }
-    }));
-    
-    toast({
-      title: "Setting Updated",
-      description: `${key} updated successfully - Changes applied instantly to all users`,
-    });
+  const handleSettingUpdate = async (key: string, value: string) => {
+    try {
+      await updateSettings({ [key]: value });
+      
+      toast({
+        title: "Setting Updated",
+        description: `${key} updated successfully - Changes applied instantly to all users`,
+      });
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update setting",
+        variant: "destructive"
+      });
+    }
   };
 
-  const toggleChannelVerification = (enabled: boolean) => {
-    setChannelVerificationEnabled(enabled);
-    localStorage.setItem('channelVerificationEnabled', JSON.stringify(enabled));
-    
-    // Dispatch real-time update
-    window.dispatchEvent(new CustomEvent('channelVerificationChanged', { 
-      detail: { enabled }
-    }));
-    
-    toast({
-      title: enabled ? "Channel Verification Enabled" : "Channel Verification Disabled",
-      description: enabled ? "Users must join all channels" : "Channel join requirement bypassed - All users can access immediately",
-    });
+  const toggleChannelVerification = async (enabled: boolean) => {
+    try {
+      await setChannelVerificationEnabled(enabled);
+      
+      toast({
+        title: enabled ? "Channel Verification Enabled" : "Channel Verification Disabled",
+        description: enabled ? "Users must join all channels" : "Channel join requirement bypassed - All users can access immediately",
+      });
+    } catch (error) {
+      console.error('Error toggling channel verification:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update channel verification setting",
+        variant: "destructive"
+      });
+    }
   };
 
   if (!isAuthorized) {
@@ -218,7 +200,7 @@ const AdminPanel: React.FC = () => {
         </div>
         
         <Tabs defaultValue="settings" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-gray-800/50 backdrop-blur-sm border border-gray-700">
+          <TabsList className="grid w-full grid-cols-4 bg-gray-800/50 backdrop-blur-sm border border-gray-700">
             <TabsTrigger value="settings" className="flex items-center space-x-2">
               <Settings className="w-4 h-4" />
               <span>Settings</span>
@@ -226,10 +208,6 @@ const AdminPanel: React.FC = () => {
             <TabsTrigger value="withdrawals" className="flex items-center space-x-2">
               <DollarSign className="w-4 h-4" />
               <span>Withdrawals</span>
-            </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center space-x-2">
-              <Users className="w-4 h-4" />
-              <span>Users</span>
             </TabsTrigger>
             <TabsTrigger value="ads" className="flex items-center space-x-2">
               <Globe className="w-4 h-4" />
@@ -313,26 +291,6 @@ const AdminPanel: React.FC = () => {
                       placeholder="30"
                     />
                   </div>
-                  
-                  <div>
-                    <Label className="text-white">Daily Spin Limit</Label>
-                    <Input
-                      value={settings.dailySpinLimit}
-                      onChange={(e) => handleSettingUpdate('dailySpinLimit', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="30"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-white">Spin Win Rate (%)</Label>
-                    <Input
-                      value={settings.spinWinPercentage}
-                      onChange={(e) => handleSettingUpdate('spinWinPercentage', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="15"
-                    />
-                  </div>
 
                   <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
                     <div>
@@ -405,9 +363,9 @@ const AdminPanel: React.FC = () => {
                       <div className="space-y-1">
                         <p className="text-white font-medium">@{request.username}</p>
                         <p className="text-green-400 font-bold">${request.amount.toFixed(2)} USDT</p>
-                        <p className="text-gray-400 text-sm">{request.method === 'binance' ? 'Binance Pay ID' : 'USDT TRC20'}</p>
-                        <p className="text-gray-300 text-sm font-mono">{request.address}</p>
-                        <p className="text-gray-500 text-xs">{request.date}</p>
+                        <p className="text-gray-400 text-sm">{request.withdrawal_method === 'binance' ? 'Binance Pay ID' : 'USDT TRC20'}</p>
+                        <p className="text-gray-300 text-sm font-mono">{request.wallet_address}</p>
+                        <p className="text-gray-500 text-xs">{new Date(request.created_at).toLocaleDateString()}</p>
                       </div>
                       <div className="space-x-2">
                         <Button 
@@ -427,41 +385,11 @@ const AdminPanel: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* User Management */}
-          <TabsContent value="users">
-            <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">User Overview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {users.map((user) => (
-                    <div key={user.id} className="p-4 bg-gray-700/50 rounded-lg border border-gray-600">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                          <p className="text-white font-medium">@{user.username}</p>
-                          <p className="text-gray-400 text-sm">Joined: {user.joinDate}</p>
-                        </div>
-                        <div>
-                          <p className="text-green-400 font-bold">${user.balance.toFixed(2)}</p>
-                          <p className="text-gray-400 text-sm">Balance</p>
-                        </div>
-                        <div>
-                          <p className="text-blue-400">{user.referrals} referrals</p>
-                          <p className="text-gray-400 text-sm">{user.adsWatched}/30 ads</p>
-                        </div>
-                        <div>
-                          <p className="text-purple-400">{user.spinsUsed}/30 spins</p>
-                          <p className="text-gray-400 text-sm">Activity</p>
-                        </div>
-                      </div>
+                  {withdrawalRequests.filter(request => request.status === 'pending').length === 0 && (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400">No pending withdrawal requests</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
