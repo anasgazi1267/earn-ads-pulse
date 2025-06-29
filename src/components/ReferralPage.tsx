@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +8,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface ReferralPageProps {
   userInfo: any;
+  referralCount: number;
 }
 
-const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo }) => {
+const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) => {
   const [referralStats, setReferralStats] = useState({
     totalReferrals: 0,
     totalEarnings: 0,
@@ -21,7 +23,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo }) => {
   useEffect(() => {
     generateReferralLink();
     loadReferralStats();
-  }, [userInfo]);
+  }, [userInfo, referralCount]);
 
   const generateReferralLink = () => {
     if (userInfo?.id) {
@@ -31,12 +33,11 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo }) => {
   };
 
   const loadReferralStats = () => {
-    // This would load from Supabase
-    // Mock data for now
+    // Use the actual referral count from props
     setReferralStats({
-      totalReferrals: 5,
-      totalEarnings: 2.50,
-      pendingEarnings: 0.75
+      totalReferrals: referralCount,
+      totalEarnings: referralCount * 0.50, // Mock calculation
+      pendingEarnings: 0.00
     });
   };
 
@@ -90,7 +91,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo }) => {
               <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
               <p className="text-gray-400 text-sm">Total Earned</p>
               <p className="text-xl font-bold text-white">
-                ${referralStats.totalEarnings.toFixed(2)}
+                ${referralStats.totalEarnings.toFixed(3)}
               </p>
             </CardContent>
           </Card>
@@ -100,7 +101,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo }) => {
               <DollarSign className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
               <p className="text-gray-400 text-sm">Pending</p>
               <p className="text-xl font-bold text-white">
-                ${referralStats.pendingEarnings.toFixed(2)}
+                ${referralStats.pendingEarnings.toFixed(3)}
               </p>
             </CardContent>
           </Card>

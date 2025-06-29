@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,17 +5,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DollarSign, Users, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdmin } from '@/contexts/AdminContext';
+import { dbService } from '@/services/database';
 
 interface WithdrawPageProps {
-  withdrawalEnabled?: boolean;
-  referralCount?: number;
+  withdrawalEnabled: boolean;
+  referralCount: number;
+  userBalance: number;
+  userInfo: any;
 }
 
 const WithdrawPage: React.FC<WithdrawPageProps> = ({ 
-  withdrawalEnabled = false, 
-  referralCount = 0 
+  withdrawalEnabled, 
+  referralCount,
+  userBalance,
+  userInfo
 }) => {
-  const [balance, setBalance] = useState(0);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [binancePayId, setBinancePayId] = useState('');
   const [usdtAddress, setUsdtAddress] = useState('');
@@ -24,44 +28,24 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
   const { toast } = useToast();
+  const { settings } = useAdmin();
 
-  const minWithdraw = 1.0;
-  const requiredReferrals = 5;
+  const minWithdraw = parseFloat(settings.minWithdrawal);
+  const requiredReferrals = parseInt(settings.requiredReferrals);
 
   useEffect(() => {
-    loadBalance();
     loadWithdrawalHistory();
-  }, []);
+  }, [userInfo]);
 
-  const loadBalance = () => {
-    const storedBalance = localStorage.getItem('balance');
-    setBalance(parseFloat(storedBalance || '0'));
-  };
-
-  const loadWithdrawalHistory = () => {
-    const storedHistory = localStorage.getItem('withdrawalHistory');
-    if (storedHistory) {
-      setWithdrawalHistory(JSON.parse(storedHistory));
-    } else {
-      // Mock data for demonstration
-      setWithdrawalHistory([
-        {
-          id: '1',
-          amount: 5.00,
-          status: 'completed',
-          date: '2023-12-01',
-          method: 'binance',
-          address: 'test123'
-        },
-        {
-          id: '2',
-          amount: 2.50,
-          status: 'pending',
-          date: '2023-12-15',
-          method: 'usdt',
-          address: 'TXabc123...'
-        }
-      ]);
+  const loadWithdrawalHistory = async () => {
+    if (userInfo?.id) {
+      try {
+        const history = await dbService.getWithdrawalRequests();
+        const userHistory = history.filter(w => w.telegram_id === userInfo.id.toString());
+        setWithdrawalHistory(userHistory);
+      } catch (error) {
+        console.error('Error loading withdrawal history:', error);
+      }
     }
   };
 
@@ -86,7 +70,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
       return;
     }
 
-    if (amount > balance) {
+    if (amount > userBalance) {
       toast({
         title: "Insufficient Balance",
         description: "You don't have enough balance for this withdrawal",
@@ -108,39 +92,29 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
     setIsSubmitting(true);
 
     try {
-      const withdrawalRequest = {
-        id: Date.now().toString(),
+      const success = await dbService.createWithdrawalRequest({
+        telegram_id: userInfo.id.toString(),
+        username: userInfo.username || `${userInfo.first_name} ${userInfo.last_name}`,
         amount: amount,
-        method: withdrawalMethod,
-        address: address,
-        status: 'pending',
-        date: new Date().toISOString().split('T')[0],
-        userId: 'user123'
-      };
-
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Update local balance
-      const newBalance = balance - amount;
-      localStorage.setItem('balance', newBalance.toString());
-      setBalance(newBalance);
-
-      // Add to history
-      const updatedHistory = [withdrawalRequest, ...withdrawalHistory];
-      setWithdrawalHistory(updatedHistory);
-      localStorage.setItem('withdrawalHistory', JSON.stringify(updatedHistory));
-
-      // Clear form
-      setWithdrawAmount('');
-      setBinancePayId('');
-      setUsdtAddress('');
-
-      toast({
-        title: "Withdrawal Requested",
-        description: "Your withdrawal request has been submitted for approval",
+        withdrawal_method: withdrawalMethod,
+        wallet_address: address,
+        status: 'pending'
       });
 
+      if (success) {
+        // Clear form
+        setWithdrawAmount('');
+        setBinancePayId('');
+        setUsdtAddress('');
+
+        // Reload history
+        loadWithdrawalHistory();
+
+        toast({
+          title: "Withdrawal Requested",
+          description: "Your withdrawal request has been submitted for approval",
+        });
+      }
     } catch (error) {
       console.error('Withdrawal error:', error);
       toast({
@@ -178,7 +152,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
         <h1 className="text-2xl font-bold text-white mb-2">Withdraw Funds</h1>
         <div className="flex items-center justify-center space-x-2">
           <DollarSign className="w-6 h-6 text-green-400" />
-          <span className="text-2xl font-bold text-green-400">${balance.toFixed(2)}</span>
+          <span className="text-2xl font-bold text-green-400">${userBalance.toFixed(3)}</span>
           <span className="text-gray-400">Available</span>
         </div>
       </div>
@@ -219,7 +193,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
               onChange={(e) => setWithdrawAmount(e.target.value)}
               className="bg-gray-700 border-gray-600 text-white"
               min={minWithdraw}
-              max={balance}
+              max={userBalance}
               step="0.01"
               disabled={!withdrawalEnabled}
             />
@@ -289,7 +263,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
 
           <Button
             onClick={handleWithdraw}
-            disabled={isSubmitting || balance < minWithdraw || !withdrawalEnabled}
+            disabled={isSubmitting || userBalance < minWithdraw || !withdrawalEnabled}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600"
           >
             {isSubmitting ? "Submitting..." : "Request Withdrawal"}

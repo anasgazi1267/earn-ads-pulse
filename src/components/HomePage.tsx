@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Activity, Users } from 'lucide-react';
@@ -5,9 +6,11 @@ import { DollarSign, Activity, Users } from 'lucide-react';
 interface HomePageProps {
   userInfo: any;
   referralCount: number;
+  userBalance: number;
+  updateUserBalance: (newBalance: number) => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount }) => {
+const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalance, updateUserBalance }) => {
   const [stats, setStats] = useState({
     balance: 0,
     adsWatched: 0,
@@ -16,18 +19,17 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount }) => {
   });
 
   useEffect(() => {
-    // Load user stats from Google Sheets API
+    // Load user stats and use the actual balance from props
     loadUserStats();
-  }, []);
+  }, [userBalance, referralCount]);
 
   const loadUserStats = async () => {
     try {
-      // This would connect to your Google Sheets API
-      // For now, using mock data with passed referralCount
+      // Use actual data from props instead of mock data
       setStats({
-        balance: 12.50,
-        adsWatched: 15,
-        spinsUsed: 8,
+        balance: userBalance,
+        adsWatched: 15, // This would come from database
+        spinsUsed: 8,   // This would come from database
         referrals: referralCount
       });
     } catch (error) {
@@ -55,7 +57,7 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount }) => {
         <CardContent className="p-6 text-center">
           <h2 className="text-lg font-semibold text-white mb-2">Your Balance</h2>
           <p className="text-4xl font-bold text-white">
-            ${stats.balance.toFixed(2)}
+            ${stats.balance.toFixed(3)}
           </p>
           <p className="text-green-100 mt-2">USDT Equivalent</p>
         </CardContent>
@@ -72,18 +74,6 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount }) => {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-white">{stats.adsWatched}/30</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-gray-400 flex items-center">
-              <Activity className="w-4 h-4 mr-2" />
-              Spins Used
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-white">{stats.spinsUsed}/30</p>
           </CardContent>
         </Card>
 
@@ -107,7 +97,19 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount }) => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-white">$2.30</p>
+            <p className="text-2xl font-bold text-white">$0.000</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-gray-400 flex items-center">
+              <Activity className="w-4 h-4 mr-2" />
+              Total Earned
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-white">${userBalance.toFixed(3)}</p>
           </CardContent>
         </Card>
       </div>
@@ -117,9 +119,9 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount }) => {
         <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
         <div className="text-sm text-gray-400 space-y-2">
           <p>• Watch ads to earn USDT</p>
-          <p>• Spin the wheel for bonus rewards</p>
           <p>• Refer friends for extra income</p>
           <p>• Withdraw your earnings anytime</p>
+          <p>• Join our Telegram channels for updates</p>
         </div>
       </div>
     </div>
