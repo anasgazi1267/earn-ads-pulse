@@ -262,10 +262,14 @@ export class DatabaseService {
 
       if (referralError) throw referralError;
 
-      // Update referrer's count
-      const { error: updateError } = await supabase.rpc('increment_referral_count', {
-        user_telegram_id: referrerTelegramId
-      });
+      // Update referrer's count - using direct SQL update
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ 
+          referral_count: supabase.sql`referral_count + 1`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('telegram_id', referrerTelegramId);
 
       if (updateError) console.error('Error updating referral count:', updateError);
 
