@@ -65,6 +65,8 @@ const Index = () => {
     try {
       // Initialize Telegram Web App
       let telegramUser = null;
+      let referredBy = null;
+      
       if (window.Telegram?.WebApp) {
         const tg = window.Telegram.WebApp;
         tg.ready();
@@ -74,57 +76,46 @@ const Index = () => {
         telegramUser = tg.initDataUnsafe?.user;
         console.log('Telegram user data:', telegramUser);
         
-        if (telegramUser) {
-          setUserInfo(telegramUser);
-          
-          // Extract referral from start param
-          const startParam = tg.initDataUnsafe?.start_param;
-          let referredBy = null;
-          if (startParam && startParam.startsWith('ref_')) {
-            referredBy = startParam.substring(4);
-            console.log('Referral detected:', referredBy);
-          }
-          
-          // Create or update user in database
-          await dbService.createOrUpdateUser(telegramUser, referredBy);
-          
-          // Get fresh user data from database
-          const dbUser = await dbService.getUserByTelegramId(telegramUser.id.toString());
-          if (dbUser) {
-            console.log('Database user data:', dbUser);
-            setUserBalance(dbUser.balance);
-            setReferralCount(dbUser.referral_count);
-            setHasJoinedChannels(dbUser.channels_joined || !isChannelVerificationEnabled);
-            setWithdrawalEnabled(dbUser.referral_count >= 5);
-            
-            // Handle referral logic
-            if (referredBy && !dbUser.referred_by) {
-              console.log('Processing new referral...');
-              await dbService.createReferral(referredBy, telegramUser.id.toString());
-            }
-          }
+        // Extract referral from start param
+        const startParam = tg.initDataUnsafe?.start_param;
+        if (startParam && startParam.startsWith('ref_')) {
+          referredBy = startParam.substring(4);
+          console.log('Referral detected:', referredBy);
         }
       }
       
       // Fallback for testing without Telegram (development mode)
       if (!telegramUser) {
         console.log('No Telegram user found, using test user');
-        const testUser = {
-          id: Math.floor(Math.random() * 1000000), // Random ID for testing
+        const testUserId = Math.floor(Math.random() * 1000000);
+        telegramUser = {
+          id: testUserId,
           username: 'testuser' + Math.floor(Math.random() * 1000),
           first_name: 'Test',
           last_name: 'User'
         };
-        setUserInfo(testUser);
         
-        // Create test user in database
-        await dbService.createOrUpdateUser(testUser);
-        const dbUser = await dbService.getUserByTelegramId(testUser.id.toString());
+        // Check for referral in URL for testing
+        const urlParams = new URLSearchParams(window.location.search);
+        const refParam = urlParams.get('ref');
+        if (refParam) {
+          referredBy = refParam;
+          console.log('Test referral detected:', referredBy);
+        }
+      }
+      
+      if (telegramUser) {
+        setUserInfo(telegramUser);
+        
+        // Create or update user in database
+        const dbUser = await dbService.createOrUpdateUser(telegramUser, referredBy);
+        
         if (dbUser) {
+          console.log('Database user data:', dbUser);
           setUserBalance(dbUser.balance);
-          setReferralCount(dbUser.referral_count);
+          setReferralCount(dbUser.referral_count || 0);
           setHasJoinedChannels(dbUser.channels_joined || !isChannelVerificationEnabled);
-          setWithdrawalEnabled(dbUser.referral_count >= 5);
+          setWithdrawalEnabled((dbUser.referral_count || 0) >= 5);
         }
       }
     } catch (error) {

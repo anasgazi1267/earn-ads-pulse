@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Activity, Users } from 'lucide-react';
+import { dbService } from '../services/database';
 
 interface HomePageProps {
   userInfo: any;
@@ -25,13 +26,17 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
 
   const loadUserStats = async () => {
     try {
-      // Use actual data from props instead of mock data
-      setStats({
-        balance: userBalance,
-        adsWatched: 15, // This would come from database
-        spinsUsed: 8,   // This would come from database
-        referrals: referralCount
-      });
+      if (userInfo) {
+        const user = await dbService.getUserByTelegramId(userInfo.id.toString());
+        if (user) {
+          setStats({
+            balance: userBalance,
+            adsWatched: user.ads_watched_today || 0,
+            spinsUsed: user.spins_used_today || 0,
+            referrals: referralCount
+          });
+        }
+      }
     } catch (error) {
       console.error('Error loading stats:', error);
     }
@@ -111,7 +116,7 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-white">$0.000</p>
+            <p className="text-2xl font-bold text-white">${(stats.adsWatched * 0.005).toFixed(3)}</p>
           </CardContent>
         </Card>
 
@@ -132,8 +137,8 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
       <div className="space-y-3">
         <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
         <div className="text-sm text-gray-400 space-y-2">
-          <p>• Watch ads to earn USDT</p>
-          <p>• Refer friends for extra income</p>
+          <p>• Watch 30-sec ads to earn $0.005 USDT each</p>
+          <p>• Refer friends for $0.01 bonus per referral</p>
           <p>• Withdraw your earnings anytime</p>
           <p>• Join our Telegram channels for updates</p>
         </div>

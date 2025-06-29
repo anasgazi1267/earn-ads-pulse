@@ -2,17 +2,18 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Clock, Eye, ExternalLink } from 'lucide-react';
+import { DollarSign, Clock, Eye, ExternalLink, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAdmin } from '../contexts/AdminContext';
 import { dbService } from '../services/database';
 
 interface Ad {
   id: string;
-  type: 'image' | 'html' | 'monetag';
+  type: 'image' | 'html' | 'monetag' | 'video';
   content: string;
   link: string;
   reward: number;
+  duration: number;
 }
 
 interface AdViewerPageProps {
@@ -27,47 +28,40 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   updateUserBalance 
 }) => {
   const [currentAd, setCurrentAd] = useState<Ad | null>(null);
-  const [countdown, setCountdown] = useState(15);
+  const [countdown, setCountdown] = useState(30); // 30 seconds
   const [canEarn, setCanEarn] = useState(false);
   const [adsWatchedToday, setAdsWatchedToday] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [hasClickedAd, setHasClickedAd] = useState(false);
+  const [isWatching, setIsWatching] = useState(false);
   const { toast } = useToast();
   const { settings } = useAdmin();
 
-  const maxAdsPerDay = parseInt(settings.dailyAdLimit);
-  const adReward = parseFloat(settings.adRewardRate);
+  const maxAdsPerDay = parseInt(settings.dailyAdLimit || '30');
+  const adReward = 0.005; // Fixed $0.005 per ad
 
   useEffect(() => {
     loadNextAd();
     loadTodayStats();
-
-    // Listen for admin settings updates
-    const handleSettingsUpdate = () => {
-      loadTodayStats();
-    };
-
-    window.addEventListener('adminSettingsUpdated', handleSettingsUpdate);
-    return () => window.removeEventListener('adminSettingsUpdated', handleSettingsUpdate);
   }, []);
 
   useEffect(() => {
-    if (currentAd && countdown > 0) {
+    if (currentAd && countdown > 0 && isWatching) {
       const timer = setTimeout(() => {
         setCountdown(countdown - 1);
       }, 1000);
       return () => clearTimeout(timer);
-    } else if (countdown === 0) {
+    } else if (countdown === 0 && isWatching) {
       setCanEarn(true);
     }
-  }, [countdown, currentAd]);
+  }, [countdown, currentAd, isWatching]);
 
   const loadTodayStats = async () => {
     if (userInfo) {
       try {
         const user = await dbService.getUserByTelegramId(userInfo.id.toString());
         if (user) {
-          setAdsWatchedToday(user.ads_watched_today);
+          setAdsWatchedToday(user.ads_watched_today || 0);
         }
       } catch (error) {
         console.error('Error loading today stats:', error);
@@ -78,6 +72,8 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const loadNextAd = async () => {
     setIsLoading(true);
     setHasClickedAd(false);
+    setIsWatching(false);
+    setCanEarn(false);
     try {
       const mockAds: Ad[] = [
         {
@@ -85,28 +81,38 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
           type: 'image',
           content: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop',
           link: 'https://otieu.com/4/9498111',
-          reward: adReward
+          reward: adReward,
+          duration: 30
         },
         {
           id: '2',
           type: 'html',
           content: settings.htmlAdCode || '<div style="background: linear-gradient(45deg, #FF6B6B, #4ECDC4); padding: 40px; text-align: center; color: white; border-radius: 10px;"><h2>Special Offer!</h2><p>Get 50% off your next purchase</p></div>',
           link: 'https://otieu.com/4/9498111',
-          reward: adReward
+          reward: adReward,
+          duration: 30
         },
         {
           id: '3',
           type: 'monetag',
           content: settings.monetagBannerCode || '',
           link: 'https://otieu.com/4/9498111',
-          reward: adReward
+          reward: adReward,
+          duration: 30
+        },
+        {
+          id: '4',
+          type: 'video',
+          content: '/lovable-uploads/613366ca-1ff2-4789-a5e9-b330dba1513a.png',
+          link: 'https://otieu.com/4/9498111',
+          reward: adReward,
+          duration: 30
         }
       ];
 
       const randomAd = mockAds[Math.floor(Math.random() * mockAds.length)];
       setCurrentAd(randomAd);
-      setCountdown(15);
-      setCanEarn(false);
+      setCountdown(30); // Reset to 30 seconds
     } catch (error) {
       console.error('Error loading ad:', error);
       toast({
@@ -119,13 +125,22 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     }
   };
 
+  const handleStartWatching = () => {
+    setIsWatching(true);
+    setCountdown(30);
+    toast({
+      title: "Ad Started",
+      description: "Watch for 30 seconds to earn $0.005",
+    });
+  };
+
   const handleAdClick = () => {
     if (currentAd?.link) {
       window.open(currentAd.link, '_blank');
       setHasClickedAd(true);
       toast({
         title: "Ad Clicked!",
-        description: "You must click the ad to earn rewards",
+        description: "Great! Now wait for the timer to complete",
       });
     }
   };
@@ -160,6 +175,11 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         title: "Earned!",
         description: `You earned $${currentAd.reward.toFixed(3)} USDT`,
       });
+
+      // Reset states
+      setIsWatching(false);
+      setCanEarn(false);
+      setHasClickedAd(false);
 
       if (adsWatchedToday + 1 < maxAdsPerDay) {
         setTimeout(() => {
@@ -207,7 +227,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
             Progress: <span className="text-green-400 font-semibold">{adsWatchedToday}/{maxAdsPerDay}</span> ads today
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            Earn ${adReward.toFixed(3)} USDT per ad
+            Earn $0.005 USDT per ad (30 seconds each)
           </p>
         </div>
       </div>
@@ -228,7 +248,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
                 Advertisement
               </span>
               <span className="text-green-400 font-bold text-lg">
-                +${currentAd.reward.toFixed(3)}
+                +$0.005
               </span>
             </CardTitle>
           </CardHeader>
@@ -237,7 +257,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
               className="bg-gray-700 rounded-lg p-4 min-h-[250px] flex items-center justify-center cursor-pointer hover:bg-gray-600 transition-colors"
               onClick={handleAdClick}
             >
-              {currentAd.type === 'image' ? (
+              {currentAd.type === 'image' || currentAd.type === 'video' ? (
                 <div className="text-center">
                   <img 
                     src={currentAd.content} 
@@ -295,38 +315,56 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
               )}
             </div>
 
-            {!hasClickedAd && (
+            {!isWatching && (
+              <Button
+                onClick={handleStartWatching}
+                className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                <Play className="w-5 h-5 mr-2" />
+                Start Watching (30s)
+              </Button>
+            )}
+
+            {isWatching && !hasClickedAd && (
               <div className="text-center bg-yellow-500/20 rounded-lg p-3 border border-yellow-500/30">
                 <p className="text-yellow-300 text-sm">⚠️ Click on the advertisement above to proceed</p>
               </div>
             )}
 
-            {countdown > 0 && (
+            {isWatching && countdown > 0 && (
               <div className="text-center bg-orange-500/20 rounded-lg p-4 border border-orange-500/30">
                 <div className="flex items-center justify-center space-x-2 text-orange-400">
                   <Clock className="w-5 h-5" />
                   <span className="text-xl font-bold">{countdown}s</span>
                 </div>
                 <p className="text-sm text-orange-300 mt-1">Please wait to earn your reward</p>
+                <div className="w-full bg-gray-600 rounded-full h-2 mt-2">
+                  <div 
+                    className="bg-orange-400 h-2 rounded-full transition-all duration-1000"
+                    style={{ width: `${((30 - countdown) / 30) * 100}%` }}
+                  ></div>
+                </div>
               </div>
             )}
 
-            <Button
-              onClick={handleEarnNow}
-              disabled={!canEarn || !hasClickedAd}
-              className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300"
-            >
-              {canEarn && hasClickedAd ? (
-                <>
-                  <DollarSign className="w-5 h-5 mr-2" />
-                  Earn ${currentAd.reward.toFixed(3)} Now
-                </>
-              ) : !hasClickedAd ? (
-                'Click Advertisement First'
-              ) : (
-                'Please Wait...'
-              )}
-            </Button>
+            {isWatching && (
+              <Button
+                onClick={handleEarnNow}
+                disabled={!canEarn || !hasClickedAd}
+                className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300"
+              >
+                {canEarn && hasClickedAd ? (
+                  <>
+                    <DollarSign className="w-5 h-5 mr-2" />
+                    Earn $0.005 Now
+                  </>
+                ) : !hasClickedAd ? (
+                  'Click Advertisement First'
+                ) : (
+                  'Please Wait...'
+                )}
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : null}

@@ -107,6 +107,13 @@ export class DatabaseService {
 
         if (error) throw error;
         console.log('Created new user:', data);
+        
+        // Process referral if exists
+        if (referredBy) {
+          console.log('Processing referral for new user');
+          await this.processReferral(referredBy, telegramUser.id.toString());
+        }
+        
         return data;
       }
     } catch (error) {
@@ -248,39 +255,73 @@ export class DatabaseService {
     }
   }
 
-  // Referral operations
-  async createReferral(referrerTelegramId: string, referredTelegramId: string): Promise<boolean> {
+  // Improved referral system
+  async processReferral(referrerTelegramId: string, referredTelegramId: string): Promise<boolean> {
     try {
+      console.log('Processing referral:', { referrerTelegramId, referredTelegramId });
+      
+      // Check if referral already exists
+      const { data: existingReferral } = await supabase
+        .from('referrals')
+        .select('id')
+        .eq('referrer_telegram_id', referrerTelegramId)
+        .eq('referred_telegram_id', referredTelegramId)
+        .single();
+
+      if (existingReferral) {
+        console.log('Referral already exists');
+        return true;
+      }
+
       // Create referral record
       const { error: referralError } = await supabase
         .from('referrals')
         .insert({
           referrer_telegram_id: referrerTelegramId,
           referred_telegram_id: referredTelegramId,
-          earnings: 0
+          earnings: 0.01 // 1 cent bonus for referral
         });
 
-      if (referralError) throw referralError;
+      if (referralError) {
+        console.error('Error creating referral:', referralError);
+        return false;
+      }
 
-      // Get current referrer data to increment count
+      // Get referrer user and update count + balance
       const referrer = await this.getUserByTelegramId(referrerTelegramId);
       if (referrer) {
+        const newReferralCount = (referrer.referral_count || 0) + 1;
+        const newBalance = referrer.balance + 0.01; // Add 1 cent for referral
+        
         const { error: updateError } = await supabase
           .from('users')
           .update({ 
-            referral_count: (referrer.referral_count || 0) + 1,
+            referral_count: newReferralCount,
+            balance: newBalance,
             updated_at: new Date().toISOString()
           })
           .eq('telegram_id', referrerTelegramId);
 
-        if (updateError) console.error('Error updating referral count:', updateError);
+        if (updateError) {
+          console.error('Error updating referrer:', updateError);
+          return false;
+        }
+
+        // Log referral activity
+        await this.logActivity(referrerTelegramId, 'referral_bonus', 0.01);
+        
+        console.log(`Referral processed: ${referrerTelegramId} got +1 referral and $0.01`);
       }
 
       return true;
     } catch (error) {
-      console.error('Error creating referral:', error);
+      console.error('Error processing referral:', error);
       return false;
     }
+  }
+
+  async createReferral(referrerTelegramId: string, referredTelegramId: string): Promise<boolean> {
+    return this.processReferral(referrerTelegramId, referredTelegramId);
   }
 
   async updateReferralEarnings(referrerTelegramId: string, referredTelegramId: string, earnings: number): Promise<boolean> {
