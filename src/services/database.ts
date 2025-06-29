@@ -61,31 +61,54 @@ export class DatabaseService {
   async createOrUpdateUser(telegramUser: any, referredBy?: string): Promise<User | null> {
     try {
       const today = new Date().toDateString();
-      const userData = {
-        telegram_id: telegramUser.id.toString(),
-        username: telegramUser.username || null,
-        first_name: telegramUser.first_name || null,
-        last_name: telegramUser.last_name || null,
-        balance: 0.000,
-        referral_count: 0,
-        channels_joined: false,
-        ads_watched_today: 0,
-        spins_used_today: 0,
-        last_activity_date: today,
-        referred_by: referredBy || null
-      };
+      
+      // First check if user exists
+      const existingUser = await this.getUserByTelegramId(telegramUser.id.toString());
+      
+      if (existingUser) {
+        // Update existing user with latest Telegram info
+        const { data, error } = await supabase
+          .from('users')
+          .update({
+            username: telegramUser.username || null,
+            first_name: telegramUser.first_name || null,
+            last_name: telegramUser.last_name || null,
+            last_activity_date: today,
+            updated_at: new Date().toISOString()
+          })
+          .eq('telegram_id', telegramUser.id.toString())
+          .select()
+          .single();
 
-      const { data, error } = await supabase
-        .from('users')
-        .upsert(userData, { 
-          onConflict: 'telegram_id',
-          ignoreDuplicates: false 
-        })
-        .select()
-        .single();
+        if (error) throw error;
+        console.log('Updated existing user:', data);
+        return data;
+      } else {
+        // Create new user with zero balance
+        const userData = {
+          telegram_id: telegramUser.id.toString(),
+          username: telegramUser.username || null,
+          first_name: telegramUser.first_name || null,
+          last_name: telegramUser.last_name || null,
+          balance: 0.000, // Start with zero balance
+          referral_count: 0,
+          channels_joined: false,
+          ads_watched_today: 0,
+          spins_used_today: 0,
+          last_activity_date: today,
+          referred_by: referredBy || null
+        };
 
-      if (error) throw error;
-      return data;
+        const { data, error } = await supabase
+          .from('users')
+          .insert(userData)
+          .select()
+          .single();
+
+        if (error) throw error;
+        console.log('Created new user:', data);
+        return data;
+      }
     } catch (error) {
       console.error('Error creating/updating user:', error);
       return null;
@@ -115,7 +138,9 @@ export class DatabaseService {
         .update({ balance: newBalance, updated_at: new Date().toISOString() })
         .eq('telegram_id', telegramId);
 
-      return !error;
+      if (error) throw error;
+      console.log(`Updated balance for user ${telegramId}: ${newBalance}`);
+      return true;
     } catch (error) {
       console.error('Error updating balance:', error);
       return false;
@@ -196,6 +221,7 @@ export class DatabaseService {
           updated_at: new Date().toISOString()
         }, { onConflict: 'setting_key' });
 
+      console.log(`Updated admin setting ${key}: ${value}`);
       return !error;
     } catch (error) {
       console.error('Error updating admin setting:', error);
@@ -225,7 +251,8 @@ export class DatabaseService {
   // Referral operations
   async createReferral(referrerTelegramId: string, referredTelegramId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
+      // Create referral record
+      const { error: referralError } = await supabase
         .from('referrals')
         .insert({
           referrer_telegram_id: referrerTelegramId,
@@ -233,7 +260,16 @@ export class DatabaseService {
           earnings: 0
         });
 
-      return !error;
+      if (referralError) throw referralError;
+
+      // Update referrer's count
+      const { error: updateError } = await supabase.rpc('increment_referral_count', {
+        user_telegram_id: referrerTelegramId
+      });
+
+      if (updateError) console.error('Error updating referral count:', updateError);
+
+      return true;
     } catch (error) {
       console.error('Error creating referral:', error);
       return false;
@@ -304,7 +340,7 @@ export class DatabaseService {
     }
   }
 
-  // Real-time subscriptions
+  // Real-time subscriptions for instant updates
   subscribeToAdminSettings(callback: (settings: Record<string, string>) => void) {
     const channel = supabase
       .channel('admin_settings_changes')
@@ -312,11 +348,14 @@ export class DatabaseService {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'admin_settings' },
         async () => {
+          console.log('Admin settings changed - updating...');
           const settings = await this.getAdminSettings();
           callback(settings);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Admin settings subscription status:', status);
+      });
 
     return () => supabase.removeChannel(channel);
   }
@@ -328,11 +367,40 @@ export class DatabaseService {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'withdrawal_requests' },
         async () => {
+          console.log('Withdrawal requests changed - updating...');
           const withdrawals = await this.getWithdrawalRequests();
           callback(withdrawals);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Withdrawal subscription status:', status);
+      });
+
+    return () => supabase.removeChannel(channel);
+  }
+
+  // Subscribe to user balance changes for real-time updates
+  subscribeToUserBalance(telegramId: string, callback: (balance: number) => void) {
+    const channel = supabase
+      .channel(`user_balance_${telegramId}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'users',
+          filter: `telegram_id=eq.${telegramId}`
+        },
+        (payload) => {
+          console.log('User balance updated:', payload);
+          if (payload.new && typeof payload.new.balance === 'number') {
+            callback(payload.new.balance);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log(`User balance subscription status for ${telegramId}:`, status);
+      });
 
     return () => supabase.removeChannel(channel);
   }

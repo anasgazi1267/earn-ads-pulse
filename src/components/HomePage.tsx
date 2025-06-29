@@ -47,9 +47,20 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
         <h1 className="text-3xl font-bold text-white mb-2">
           Ads by USDT Earn
         </h1>
-        <p className="text-gray-400">
-          Welcome back, {userInfo?.first_name || 'Earner'}!
-        </p>
+        <div className="space-y-2">
+          <p className="text-gray-400">
+            Welcome back, {userInfo?.first_name || 'Earner'}!
+          </p>
+          {userInfo?.username && (
+            <p className="text-blue-400 text-sm">
+              @{userInfo.username}
+            </p>
+          )}
+          <div className="bg-gray-800/50 rounded-lg p-3 max-w-sm mx-auto">
+            <p className="text-gray-300 text-xs">Telegram ID: {userInfo?.id}</p>
+            <p className="text-green-400 text-sm font-medium">✅ Auto-logged via Telegram</p>
+          </div>
+        </div>
       </div>
 
       {/* Balance Card */}
@@ -60,6 +71,9 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
             ${stats.balance.toFixed(3)}
           </p>
           <p className="text-green-100 mt-2">USDT Equivalent</p>
+          <div className="mt-3 bg-white/10 rounded-lg p-2">
+            <p className="text-sm text-white/80">Real-time balance from database</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -123,6 +137,13 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
           <p>• Withdraw your earnings anytime</p>
           <p>• Join our Telegram channels for updates</p>
         </div>
+      </div>
+
+      {/* Real-time Status */}
+      <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3">
+        <p className="text-green-300 text-sm text-center">
+          🔄 Real-time updates enabled • Changes reflect instantly
+        </p>
       </div>
     </div>
   );
