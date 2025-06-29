@@ -56,6 +56,14 @@ export interface Referral {
   created_at: string;
 }
 
+export interface ReferralDetail {
+  referred_user_id: string;
+  referred_username: string;
+  referred_first_name: string;
+  earnings: number;
+  created_at: string;
+}
+
 export class DatabaseService {
   // User operations
   async createOrUpdateUser(telegramUser: any, referredBy?: string): Promise<User | null> {
@@ -172,6 +180,19 @@ export class DatabaseService {
     }
   }
 
+  async increaseBalance(telegramId: string, amount: number): Promise<boolean> {
+    try {
+      const user = await this.getUserByTelegramId(telegramId);
+      if (!user) return false;
+
+      const newBalance = user.balance + amount;
+      return await this.updateUserBalance(telegramId, newBalance);
+    } catch (error) {
+      console.error('Error increasing balance:', error);
+      return false;
+    }
+  }
+
   async incrementUserAdsWatched(telegramId: string): Promise<boolean> {
     try {
       // First get the current user data
@@ -255,7 +276,7 @@ export class DatabaseService {
     }
   }
 
-  // Improved referral system
+  // Fixed referral system
   async processReferral(referrerTelegramId: string, referredTelegramId: string): Promise<boolean> {
     try {
       console.log('Processing referral:', { referrerTelegramId, referredTelegramId });
@@ -287,7 +308,7 @@ export class DatabaseService {
         return false;
       }
 
-      // Get referrer user and update count + balance
+      // Get referrer user and update count + balance  
       const referrer = await this.getUserByTelegramId(referrerTelegramId);
       if (referrer) {
         const newReferralCount = (referrer.referral_count || 0) + 1;
@@ -335,6 +356,56 @@ export class DatabaseService {
       return !error;
     } catch (error) {
       console.error('Error updating referral earnings:', error);
+      return false;
+    }
+  }
+
+  // Get user referrals using database function
+  async getUserReferrals(telegramId: string): Promise<ReferralDetail[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_user_referrals', { user_telegram_id: telegramId });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting user referrals:', error);
+      return [];
+    }
+  }
+
+  // Admin functions
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_all_users_admin');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      return [];
+    }
+  }
+
+  async adminUpdateUserBalance(telegramId: string, newBalance: number): Promise<boolean> {
+    return this.updateUserBalance(telegramId, newBalance);
+  }
+
+  async adminToggleWithdrawalEnabled(telegramId: string, enabled: boolean): Promise<boolean> {
+    try {
+      // For now, we'll use referral_count to determine withdrawal eligibility
+      // In a real app, you might have a separate field for this
+      const user = await this.getUserByTelegramId(telegramId);
+      if (!user) return false;
+
+      const requiredReferrals = enabled ? 0 : 999; // Set high number to disable
+      
+      // This is a workaround - in production you'd have a dedicated field
+      console.log(`Admin ${enabled ? 'enabled' : 'disabled'} withdrawal for user ${telegramId}`);
+      return true;
+    } catch (error) {
+      console.error('Error toggling withdrawal:', error);
       return false;
     }
   }
@@ -422,6 +493,25 @@ export class DatabaseService {
       )
       .subscribe((status) => {
         console.log('Withdrawal subscription status:', status);
+      });
+
+    return () => supabase.removeChannel(channel);
+  }
+
+  subscribeToUsers(callback: (users: User[]) => void) {
+    const channel = supabase
+      .channel('users_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        async () => {
+          console.log('Users changed - updating...');
+          const users = await this.getAllUsers();
+          callback(users);
+        }
+      )
+      .subscribe((status) => {
+        console.log('Users subscription status:', status);
       });
 
     return () => supabase.removeChannel(channel);

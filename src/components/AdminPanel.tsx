@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,16 +6,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { useAdmin } from '../contexts/AdminContext';
-import { dbService, WithdrawalRequest } from '../services/database';
-import { Settings, Users, DollarSign, BarChart3, Globe, Shield, Eye, EyeOff } from 'lucide-react';
+import { dbService, WithdrawalRequest, User } from '../services/database';
+import { Settings, Users, DollarSign, BarChart3, Globe, Shield, Eye, EyeOff, UserPlus, Edit2, Check, X } from 'lucide-react';
 
 const AdminPanel: React.FC = () => {
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [adminId, setAdminId] = useState('');
   const [showAdminId, setShowAdminId] = useState(false);
+  const [editingBalance, setEditingBalance] = useState<string | null>(null);
+  const [editBalance, setEditBalance] = useState('');
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { settings, updateSettings, isChannelVerificationEnabled, setChannelVerificationEnabled } = useAdmin();
 
@@ -34,15 +38,18 @@ const AdminPanel: React.FC = () => {
 
   useEffect(() => {
     if (isAuthorized) {
-      // Subscribe to real-time withdrawal updates
-      const unsubscribe = dbService.subscribeToWithdrawals((withdrawals) => {
+      // Subscribe to real-time updates
+      const unsubscribeWithdrawals = dbService.subscribeToWithdrawals((withdrawals) => {
         setWithdrawalRequests(withdrawals);
       });
 
+      const unsubscribeUsers = dbService.subscribeToUsers((users) => {
+        setAllUsers(users);
+      });
+
       return () => {
-        if (unsubscribe) {
-          unsubscribe();
-        }
+        if (unsubscribeWithdrawals) unsubscribeWithdrawals();
+        if (unsubscribeUsers) unsubscribeUsers();
       };
     }
   }, [isAuthorized]);
@@ -66,10 +73,23 @@ const AdminPanel: React.FC = () => {
 
   const loadAdminData = async () => {
     try {
-      const withdrawals = await dbService.getWithdrawalRequests();
+      setLoading(true);
+      const [withdrawals, users] = await Promise.all([
+        dbService.getWithdrawalRequests(),
+        dbService.getAllUsers()
+      ]);
+      
       setWithdrawalRequests(withdrawals);
+      setAllUsers(users);
     } catch (error) {
       console.error('Error loading admin data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load admin data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -83,9 +103,6 @@ const AdminPanel: React.FC = () => {
           title: `Withdrawal ${action === 'approve' ? 'Approved' : 'Rejected'}`,
           description: `Request processed successfully`,
         });
-        
-        // Reload withdrawal data
-        loadAdminData();
       } else {
         toast({
           title: "Error",
@@ -137,6 +154,54 @@ const AdminPanel: React.FC = () => {
         variant: "destructive"
       });
     }
+  };
+
+  const handleBalanceEdit = (telegramId: string, currentBalance: number) => {
+    setEditingBalance(telegramId);
+    setEditBalance(currentBalance.toFixed(3));
+  };
+
+  const handleBalanceUpdate = async (telegramId: string) => {
+    try {
+      const newBalance = parseFloat(editBalance);
+      if (isNaN(newBalance) || newBalance < 0) {
+        toast({
+          title: "Invalid Balance",
+          description: "Please enter a valid positive number",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const success = await dbService.adminUpdateUserBalance(telegramId, newBalance);
+      
+      if (success) {
+        toast({
+          title: "Balance Updated",
+          description: `User balance updated to $${newBalance.toFixed(3)}`,
+        });
+        setEditingBalance(null);
+        loadAdminData(); // Refresh data
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update user balance",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error updating balance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user balance",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const cancelBalanceEdit = () => {
+    setEditingBalance(null);
+    setEditBalance('');
   };
 
   if (!isAuthorized) {
@@ -204,8 +269,12 @@ const AdminPanel: React.FC = () => {
           </div>
         </div>
         
-        <Tabs defaultValue="settings" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-gray-800/50 backdrop-blur-sm border border-gray-700">
+        <Tabs defaultValue="users" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5 bg-gray-800/50 backdrop-blur-sm border border-gray-700">
+            <TabsTrigger value="users" className="flex items-center space-x-2">
+              <Users className="w-4 h-4" />
+              <span>Users</span>
+            </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center space-x-2">
               <Settings className="w-4 h-4" />
               <span>Settings</span>
@@ -223,6 +292,121 @@ const AdminPanel: React.FC = () => {
               <span>Analytics</span>
             </TabsTrigger>
           </TabsList>
+
+          {/* Users Management Tab */}
+          <TabsContent value="users">
+            <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <UserPlus className="w-5 h-5 mr-2" />
+                  User Management ({allUsers.length} total users)
+                  <span className="ml-auto text-xs bg-green-600/20 text-green-300 px-2 py-1 rounded">LIVE</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400">Loading users...</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-gray-600">
+                          <TableHead className="text-gray-300">User</TableHead>
+                          <TableHead className="text-gray-300">Balance</TableHead>
+                          <TableHead className="text-gray-300">Referrals</TableHead>
+                          <TableHead className="text-gray-300">Ads Today</TableHead>
+                          <TableHead className="text-gray-300">Joined</TableHead>
+                          <TableHead className="text-gray-300">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {allUsers.map((user) => (
+                          <TableRow key={user.telegram_id} className="border-gray-600">
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="text-white font-medium">
+                                  {user.first_name} {user.last_name}
+                                </span>
+                                <span className="text-gray-400 text-sm">
+                                  @{user.username || 'N/A'} • ID: {user.telegram_id}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {editingBalance === user.telegram_id ? (
+                                <div className="flex items-center space-x-2">
+                                  <Input
+                                    type="number"
+                                    step="0.001"
+                                    value={editBalance}
+                                    onChange={(e) => setEditBalance(e.target.value)}
+                                    className="w-24 h-8 bg-gray-700 border-gray-600 text-white"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleBalanceUpdate(user.telegram_id)}
+                                    className="h-8 px-2 bg-green-600 hover:bg-green-700"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={cancelBalanceEdit}
+                                    className="h-8 px-2"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-green-400 font-bold">
+                                    ${user.balance.toFixed(3)}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleBalanceEdit(user.telegram_id, user.balance)}
+                                    className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-blue-400 font-medium">{user.referral_count}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-purple-400">{user.ads_watched_today}/30</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-gray-400 text-sm">
+                                {new Date(user.created_at).toLocaleDateString()}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2 text-xs border-gray-600 text-gray-300"
+                                >
+                                  View
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings">
@@ -406,7 +590,7 @@ const AdminPanel: React.FC = () => {
               <Card className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30">
                 <CardContent className="p-6 text-center">
                   <Users className="w-12 h-12 text-blue-400 mx-auto mb-2" />
-                  <h3 className="text-2xl font-bold text-white">1,234</h3>
+                  <h3 className="text-2xl font-bold text-white">{allUsers.length}</h3>
                   <p className="text-gray-400">Total Users</p>
                 </CardContent>
               </Card>
@@ -414,16 +598,20 @@ const AdminPanel: React.FC = () => {
               <Card className="bg-gradient-to-br from-green-600/20 to-blue-600/20 border-green-500/30">
                 <CardContent className="p-6 text-center">
                   <DollarSign className="w-12 h-12 text-green-400 mx-auto mb-2" />
-                  <h3 className="text-2xl font-bold text-white">$2,456</h3>
-                  <p className="text-gray-400">Total Earned</p>
+                  <h3 className="text-2xl font-bold text-white">
+                    ${allUsers.reduce((sum, user) => sum + user.balance, 0).toFixed(2)}
+                  </h3>
+                  <p className="text-gray-400">Total Balance</p>
                 </CardContent>
               </Card>
               
               <Card className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 border-purple-500/30">
                 <CardContent className="p-6 text-center">
                   <BarChart3 className="w-12 h-12 text-purple-400 mx-auto mb-2" />
-                  <h3 className="text-2xl font-bold text-white">15,678</h3>
-                  <p className="text-gray-400">Ads Watched</p>
+                  <h3 className="text-2xl font-bold text-white">
+                    {allUsers.reduce((sum, user) => sum + user.ads_watched_today, 0)}
+                  </h3>
+                  <p className="text-gray-400">Ads Watched Today</p>
                 </CardContent>
               </Card>
             </div>
