@@ -69,7 +69,11 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
     });
 
-    return unsubscribe;
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const loadSettings = async () => {

@@ -144,30 +144,27 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
 
     try {
       // Update user's ads watched count in database
-      const user = await dbService.getUserByTelegramId(userInfo.id.toString());
-      if (user) {
-        const newAdsWatched = user.ads_watched_today + 1;
-        
-        // Log the activity
-        await dbService.logActivity(userInfo.id.toString(), 'ad_watch', currentAd.reward);
-        
-        // Update balance
-        const newBalance = userBalance + currentAd.reward;
-        updateUserBalance(newBalance);
+      await dbService.incrementUserAdsWatched(userInfo.id.toString());
+      
+      // Log the activity
+      await dbService.logActivity(userInfo.id.toString(), 'ad_watch', currentAd.reward);
+      
+      // Update balance
+      const newBalance = userBalance + currentAd.reward;
+      updateUserBalance(newBalance);
 
-        // Update ads watched count
-        setAdsWatchedToday(newAdsWatched);
+      // Update ads watched count
+      setAdsWatchedToday(adsWatchedToday + 1);
 
-        toast({
-          title: "Earned!",
-          description: `You earned $${currentAd.reward.toFixed(3)} USDT`,
-        });
+      toast({
+        title: "Earned!",
+        description: `You earned $${currentAd.reward.toFixed(3)} USDT`,
+      });
 
-        if (newAdsWatched < maxAdsPerDay) {
-          setTimeout(() => {
-            loadNextAd();
-          }, 2000);
-        }
+      if (adsWatchedToday + 1 < maxAdsPerDay) {
+        setTimeout(() => {
+          loadNextAd();
+        }, 2000);
       }
     } catch (error) {
       console.error('Error processing earning:', error);
@@ -207,7 +204,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         </h1>
         <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
           <p className="text-gray-400">
-            Progress: <span className="text-green-400 font-semibold">{adsWatchedToday}/{maxAdsPerday}</span> ads today
+            Progress: <span className="text-green-400 font-semibold">{adsWatchedToday}/{maxAdsPerDay}</span> ads today
           </p>
           <p className="text-sm text-gray-500 mt-1">
             Earn ${adReward.toFixed(3)} USDT per ad

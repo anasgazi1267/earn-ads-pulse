@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,11 @@ const AdminPanel: React.FC = () => {
         setWithdrawalRequests(withdrawals);
       });
 
-      return unsubscribe;
+      return () => {
+        if (unsubscribe) {
+          unsubscribe();
+        }
+      };
     }
   }, [isAuthorized]);
 

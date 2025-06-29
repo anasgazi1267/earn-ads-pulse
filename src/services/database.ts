@@ -142,9 +142,21 @@ export class DatabaseService {
 
   async incrementUserAdsWatched(telegramId: string): Promise<boolean> {
     try {
-      const { error } = await supabase.rpc('increment_ads_watched', {
-        user_telegram_id: telegramId
-      });
+      // First get the current user data
+      const user = await this.getUserByTelegramId(telegramId);
+      if (!user) return false;
+
+      const today = new Date().toDateString();
+      const isNewDay = user.last_activity_date !== today;
+      
+      const { error } = await supabase
+        .from('users')
+        .update({
+          ads_watched_today: isNewDay ? 1 : user.ads_watched_today + 1,
+          last_activity_date: today,
+          updated_at: new Date().toISOString()
+        })
+        .eq('telegram_id', telegramId);
 
       return !error;
     } catch (error) {
