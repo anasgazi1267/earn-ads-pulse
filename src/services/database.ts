@@ -262,16 +262,19 @@ export class DatabaseService {
 
       if (referralError) throw referralError;
 
-      // Update referrer's count - using direct SQL update
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ 
-          referral_count: supabase.sql`referral_count + 1`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('telegram_id', referrerTelegramId);
+      // Get current referrer data to increment count
+      const referrer = await this.getUserByTelegramId(referrerTelegramId);
+      if (referrer) {
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ 
+            referral_count: (referrer.referral_count || 0) + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('telegram_id', referrerTelegramId);
 
-      if (updateError) console.error('Error updating referral count:', updateError);
+        if (updateError) console.error('Error updating referral count:', updateError);
+      }
 
       return true;
     } catch (error) {
