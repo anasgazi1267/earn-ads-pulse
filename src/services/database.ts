@@ -359,32 +359,41 @@ export class DatabaseService {
     }
   }
 
-  // Get user referrals using regular table query instead of RPC
+  // Get user referrals using separate queries to avoid foreign key issues
   async getUserReferrals(telegramId: string): Promise<ReferralDetail[]> {
     try {
-      const { data, error } = await supabase
+      // First get the referrals
+      const { data: referrals, error: referralsError } = await supabase
         .from('referrals')
-        .select(`
-          referred_telegram_id,
-          earnings,
-          created_at,
-          users!referrals_referred_telegram_id_fkey (
-            username,
-            first_name
-          )
-        `)
+        .select('referred_telegram_id, earnings, created_at')
         .eq('referrer_telegram_id', telegramId);
 
-      if (error) throw error;
+      if (referralsError) throw referralsError;
       
-      // Transform the data to match ReferralDetail interface
-      const referralDetails: ReferralDetail[] = (data || []).map(referral => ({
-        referred_user_id: referral.referred_telegram_id,
-        referred_username: referral.users?.username || '',
-        referred_first_name: referral.users?.first_name || '',
-        earnings: referral.earnings || 0,
-        created_at: referral.created_at || ''
-      }));
+      if (!referrals || referrals.length === 0) {
+        return [];
+      }
+
+      // Get user details for all referred users
+      const referredTelegramIds = referrals.map(r => r.referred_telegram_id);
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('telegram_id, username, first_name')
+        .in('telegram_id', referredTelegramIds);
+
+      if (usersError) throw usersError;
+
+      // Combine the data
+      const referralDetails: ReferralDetail[] = referrals.map(referral => {
+        const user = users?.find(u => u.telegram_id === referral.referred_telegram_id);
+        return {
+          referred_user_id: referral.referred_telegram_id,
+          referred_username: user?.username || '',
+          referred_first_name: user?.first_name || '',
+          earnings: referral.earnings || 0,
+          created_at: referral.created_at || ''
+        };
+      });
 
       return referralDetails;
     } catch (error) {
