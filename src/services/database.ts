@@ -359,14 +359,34 @@ export class DatabaseService {
     }
   }
 
-  // Get user referrals using database function
+  // Get user referrals using regular table query instead of RPC
   async getUserReferrals(telegramId: string): Promise<ReferralDetail[]> {
     try {
       const { data, error } = await supabase
-        .rpc('get_user_referrals', { user_telegram_id: telegramId });
+        .from('referrals')
+        .select(`
+          referred_telegram_id,
+          earnings,
+          created_at,
+          users!referrals_referred_telegram_id_fkey (
+            username,
+            first_name
+          )
+        `)
+        .eq('referrer_telegram_id', telegramId);
 
       if (error) throw error;
-      return data || [];
+      
+      // Transform the data to match ReferralDetail interface
+      const referralDetails: ReferralDetail[] = (data || []).map(referral => ({
+        referred_user_id: referral.referred_telegram_id,
+        referred_username: referral.users?.username || '',
+        referred_first_name: referral.users?.first_name || '',
+        earnings: referral.earnings || 0,
+        created_at: referral.created_at || ''
+      }));
+
+      return referralDetails;
     } catch (error) {
       console.error('Error getting user referrals:', error);
       return [];
@@ -377,7 +397,9 @@ export class DatabaseService {
   async getAllUsers(): Promise<User[]> {
     try {
       const { data, error } = await supabase
-        .rpc('get_all_users_admin');
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data || [];
