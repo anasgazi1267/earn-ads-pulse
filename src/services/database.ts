@@ -572,6 +572,22 @@ export class DatabaseService {
 
     return () => supabase.removeChannel(channel);
   }
+
+  async getUserActivities(telegramId: string): Promise<UserActivity[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_activities')
+        .select('*')
+        .eq('telegram_id', telegramId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting user activities:', error);
+      return [];
+    }
+  }
 }
 
 export const dbService = new DatabaseService();

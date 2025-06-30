@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Activity, Users } from 'lucide-react';
+import { DollarSign, Activity, Users, TrendingUp } from 'lucide-react';
 import { dbService } from '../services/database';
 
 interface HomePageProps {
@@ -15,12 +15,12 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
   const [stats, setStats] = useState({
     balance: 0,
     adsWatched: 0,
-    spinsUsed: 0,
+    todaysEarnings: 0,
+    totalEarned: 0,
     referrals: 0
   });
 
   useEffect(() => {
-    // Load user stats and use the actual balance from props
     loadUserStats();
   }, [userBalance, referralCount]);
 
@@ -29,10 +29,22 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
       if (userInfo) {
         const user = await dbService.getUserByTelegramId(userInfo.id.toString());
         if (user) {
+          // Get today's activities to calculate today's earnings
+          const activities = await dbService.getUserActivities(userInfo.id.toString());
+          const today = new Date().toDateString();
+          const todayActivities = activities.filter(activity => 
+            new Date(activity.activity_date).toDateString() === today
+          );
+          
+          const todaysEarnings = todayActivities
+            .filter(activity => activity.activity_type.includes('ad_watch'))
+            .reduce((sum, activity) => sum + Number(activity.amount), 0);
+
           setStats({
             balance: userBalance,
             adsWatched: user.ads_watched_today || 0,
-            spinsUsed: user.spins_used_today || 0,
+            todaysEarnings: todaysEarnings,
+            totalEarned: userBalance,
             referrals: referralCount
           });
         }
@@ -92,7 +104,7 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-white">{stats.adsWatched}/30</p>
+            <p className="text-2xl font-bold text-white">{stats.adsWatched}/90</p>
           </CardContent>
         </Card>
 
@@ -111,24 +123,24 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-gray-400 flex items-center">
-              <DollarSign className="w-4 h-4 mr-2" />
+              <TrendingUp className="w-4 h-4 mr-2" />
               Today's Earn
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-white">${(stats.adsWatched * 0.005).toFixed(3)}</p>
+            <p className="text-2xl font-bold text-white">${stats.todaysEarnings.toFixed(3)}</p>
           </CardContent>
         </Card>
 
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-gray-400 flex items-center">
-              <Activity className="w-4 h-4 mr-2" />
+              <DollarSign className="w-4 h-4 mr-2" />
               Total Earned
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-white">${userBalance.toFixed(3)}</p>
+            <p className="text-2xl font-bold text-white">${stats.totalEarned.toFixed(3)}</p>
           </CardContent>
         </Card>
       </div>
@@ -137,7 +149,7 @@ const HomePage: React.FC<HomePageProps> = ({ userInfo, referralCount, userBalanc
       <div className="space-y-3">
         <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
         <div className="text-sm text-gray-400 space-y-2">
-          <p>• Watch 30-sec ads to earn $0.005 USDT each</p>
+          <p>• Watch ads to earn $0.005 USDT each (30 per type daily)</p>
           <p>• Refer friends for $0.01 bonus per referral</p>
           <p>• Withdraw your earnings anytime</p>
           <p>• Join our Telegram channels for updates</p>
