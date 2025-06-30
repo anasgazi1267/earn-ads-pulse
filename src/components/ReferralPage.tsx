@@ -3,16 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Users, DollarSign, Clock } from 'lucide-react';
+import { Users, DollarSign, Clock, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { dbService, ReferralDetail } from '../services/database';
 
 interface ReferralPageProps {
   userInfo: any;
   referralCount: number;
+  onReferralUpdate?: () => void;
 }
 
-const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) => {
+const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount, onReferralUpdate }) => {
   const [referralStats, setReferralStats] = useState({
     totalReferrals: 0,
     totalEarnings: 0,
@@ -21,6 +22,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
   const [referralDetails, setReferralDetails] = useState<ReferralDetail[]>([]);
   const [referralLink, setReferralLink] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,7 +41,11 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
     try {
       if (userInfo?.id) {
         setLoading(true);
+        console.log('Loading referral data for user:', userInfo.id);
+        
+        // Get referral details
         const details = await dbService.getUserReferrals(userInfo.id.toString());
+        console.log('Loaded referral details:', details);
         setReferralDetails(details);
         
         // Calculate stats from referral details
@@ -49,6 +55,12 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
           totalReferrals: referralCount,
           totalEarnings: totalEarnings,
           pendingEarnings: 0.00
+        });
+        
+        console.log('Referral stats updated:', {
+          totalReferrals: referralCount,
+          totalEarnings: totalEarnings,
+          detailsCount: details.length
         });
       }
     } catch (error) {
@@ -61,6 +73,19 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
     } finally {
       setLoading(false);
     }
+  };
+
+  const refreshReferralData = async () => {
+    setRefreshing(true);
+    await loadReferralData();
+    if (onReferralUpdate) {
+      onReferralUpdate();
+    }
+    setRefreshing(false);
+    toast({
+      title: "Refreshed!",
+      description: "Referral data has been updated",
+    });
   };
 
   const copyReferralLink = () => {
@@ -87,7 +112,18 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
     <div className="p-4 space-y-6">
       {/* Header */}
       <div className="text-center py-4">
-        <h1 className="text-2xl font-bold text-white mb-2">Referral Program</h1>
+        <div className="flex items-center justify-center space-x-2 mb-2">
+          <h1 className="text-2xl font-bold text-white">Referral Program</h1>
+          <Button
+            onClick={refreshReferralData}
+            disabled={refreshing}
+            variant="ghost"
+            size="sm"
+            className="text-blue-400 hover:text-blue-300"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
         <p className="text-gray-400">
           Earn $0.01 from each friend who joins
         </p>
@@ -102,6 +138,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
               <div>
                 <p className="text-white text-sm opacity-90">Total Referrals</p>
                 <p className="text-3xl font-bold text-white">{referralStats.totalReferrals}</p>
+                <p className="text-white text-xs opacity-75">Active: {referralDetails.length}</p>
               </div>
             </div>
           </CardContent>
@@ -173,7 +210,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
           ) : referralDetails.length > 0 ? (
             <div className="space-y-3">
               {referralDetails.map((ref, index) => (
-                <div key={index} className="flex justify-between items-center py-3 px-4 bg-gray-700/50 rounded-lg border border-gray-600">
+                <div key={`${ref.referred_user_id}-${index}`} className="flex justify-between items-center py-3 px-4 bg-gray-700/50 rounded-lg border border-gray-600">
                   <div className="flex flex-col">
                     <span className="text-white font-medium">
                       {ref.referred_first_name || 'User'} 
@@ -181,6 +218,9 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount }) 
                     </span>
                     <span className="text-gray-400 text-sm">
                       {new Date(ref.created_at).toLocaleDateString()}
+                    </span>
+                    <span className="text-gray-500 text-xs">
+                      ID: {ref.referred_user_id}
                     </span>
                   </div>
                   <div className="text-right">

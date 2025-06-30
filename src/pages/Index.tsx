@@ -80,7 +80,7 @@ const Index = () => {
         const startParam = tg.initDataUnsafe?.start_param;
         if (startParam && startParam.startsWith('ref_')) {
           referredBy = startParam.substring(4);
-          console.log('Referral detected:', referredBy);
+          console.log('Referral detected from Telegram:', referredBy);
         }
       }
       
@@ -100,14 +100,15 @@ const Index = () => {
         const refParam = urlParams.get('ref');
         if (refParam) {
           referredBy = refParam;
-          console.log('Test referral detected:', referredBy);
+          console.log('Test referral detected from URL:', referredBy);
         }
       }
       
       if (telegramUser) {
         setUserInfo(telegramUser);
         
-        // Create or update user in database
+        // Create or update user in database with referral handling
+        console.log('Creating/updating user with referral:', { userId: telegramUser.id, referredBy });
         const dbUser = await dbService.createOrUpdateUser(telegramUser, referredBy);
         
         if (dbUser) {
@@ -116,6 +117,12 @@ const Index = () => {
           setReferralCount(dbUser.referral_count || 0);
           setHasJoinedChannels(dbUser.channels_joined || !isChannelVerificationEnabled);
           setWithdrawalEnabled((dbUser.referral_count || 0) >= 5);
+          
+          console.log('User state updated:', {
+            balance: dbUser.balance,
+            referralCount: dbUser.referral_count,
+            hasJoinedChannels: dbUser.channels_joined
+          });
         }
       }
     } catch (error) {
@@ -141,6 +148,26 @@ const Index = () => {
       await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
     }
   };
+
+  // Function to refresh referral count
+  const refreshReferralCount = async () => {
+    if (userInfo) {
+      console.log('Refreshing referral count for user:', userInfo.id);
+      const user = await dbService.getUserByTelegramId(userInfo.id.toString());
+      if (user) {
+        console.log('Updated referral count:', user.referral_count);
+        setReferralCount(user.referral_count || 0);
+        setWithdrawalEnabled((user.referral_count || 0) >= 5);
+      }
+    }
+  };
+
+  // Refresh referral count when user info changes
+  useEffect(() => {
+    if (userInfo && !isLoading) {
+      refreshReferralCount();
+    }
+  }, [userInfo, isLoading]);
 
   if (isLoading || adminLoading) {
     return (
@@ -190,6 +217,7 @@ const Index = () => {
             <ReferralPage 
               userInfo={userInfo} 
               referralCount={referralCount}
+              onReferralUpdate={refreshReferralCount}
             />
           } />
           <Route path="/withdraw" element={
