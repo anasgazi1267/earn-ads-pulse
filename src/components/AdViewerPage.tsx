@@ -38,6 +38,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const maxAdsPerType = 30; // 30 limit for each ad type
   const totalMaxAds = maxAdsPerType * 3; // 90 total
   const adReward = 0.005; // $0.005 per ad
+  const adDuration = 20; // All ads are 20 seconds
 
   const adTypes = [
     {
@@ -47,7 +48,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       icon: <Gift className="w-6 h-6" />,
       color: 'from-green-600 to-emerald-600',
       reward: adReward,
-      duration: 30,
+      duration: adDuration,
       count: adTypeStats.interstitial
     },
     {
@@ -57,7 +58,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       icon: <Zap className="w-6 h-6" />,
       color: 'from-blue-600 to-cyan-600',
       reward: adReward,
-      duration: 25,
+      duration: adDuration,
       count: adTypeStats.popup
     },
     {
@@ -67,7 +68,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       icon: <Monitor className="w-6 h-6" />,
       color: 'from-purple-600 to-pink-600',
       reward: adReward,
-      duration: 35,
+      duration: adDuration,
       count: adTypeStats.inapp
     }
   ];
@@ -108,6 +109,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
           };
           
           setAdTypeStats(stats);
+          console.log('Loaded ad stats:', stats);
         }
       } catch (error) {
         console.error('Error loading today stats:', error);
@@ -120,21 +122,28 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     const currentAdType = watchingType;
     setWatchingType('');
     
+    console.log(`Ad completed: ${currentAdType}`);
+    
     // Check if this ad type is under limit
     const currentTypeCount = adTypeStats[currentAdType as keyof typeof adTypeStats] || 0;
     const canEarn = currentTypeCount < maxAdsPerType;
     
+    console.log(`Current ${currentAdType} count: ${currentTypeCount}, Can earn: ${canEarn}`);
+    
     try {
-      // Always increment the ad count
+      // Always increment the total ad count
       await dbService.incrementUserAdsWatched(userInfo.id.toString());
+      console.log('Incremented total ads watched');
       
       // Log the specific ad type activity
       await dbService.logActivity(userInfo.id.toString(), `ad_watch_${currentAdType}`, canEarn ? adReward : 0);
+      console.log(`Logged activity: ad_watch_${currentAdType}, reward: ${canEarn ? adReward : 0}`);
       
       // Update balance only if under limit
       if (canEarn) {
         const newBalance = userBalance + adReward;
         updateUserBalance(newBalance);
+        console.log(`Updated balance: ${newBalance}`);
 
         toast({
           title: "Reward Earned! 🎉",
@@ -149,11 +158,20 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       }
 
       // Update local stats
-      setAdsWatchedToday(prev => prev + 1);
-      setAdTypeStats(prev => ({
-        ...prev,
-        [currentAdType]: prev[currentAdType as keyof typeof prev] + 1
-      }));
+      setAdsWatchedToday(prev => {
+        const newCount = prev + 1;
+        console.log(`Updated total ads watched today: ${newCount}`);
+        return newCount;
+      });
+      
+      setAdTypeStats(prev => {
+        const newStats = {
+          ...prev,
+          [currentAdType]: prev[currentAdType as keyof typeof prev] + 1
+        };
+        console.log(`Updated ad type stats:`, newStats);
+        return newStats;
+      });
 
     } catch (error) {
       console.error('Error processing earning:', error);
@@ -168,13 +186,12 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const watchAd = async (adType: string, duration: number) => {
     if (isWatching) return;
 
+    console.log(`Starting ${adType} ad for ${duration} seconds...`);
     setIsWatching(true);
     setWatchingType(adType);
     setCountdown(duration);
 
     try {
-      console.log(`Starting ${adType} ad...`);
-      
       if (adType === 'interstitial') {
         await show_9506527();
       } else if (adType === 'popup') {
@@ -194,7 +211,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
 
       toast({
         title: "Ad Started",
-        description: `Watch for ${duration} seconds`,
+        description: `Watch for ${duration} seconds to earn reward`,
       });
     } catch (error) {
       console.error('Ad error:', error);
@@ -289,7 +306,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
                   className={`w-full h-12 text-lg font-semibold bg-gradient-to-r ${ad.color} hover:opacity-90 disabled:opacity-50 transition-all duration-300`}
                 >
                   <Play className="w-5 h-5 mr-2" />
-                  {isWatching ? 'Another ad is playing...' : `Watch ${ad.title}`}
+                  {isWatching ? 'Another ad is playing...' : `Watch ${ad.title} (20s)`}
                 </Button>
               )}
               
@@ -319,7 +336,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold text-yellow-400">
-                  ${(Math.min(adsWatchedToday, totalMaxAds) * adReward).toFixed(3)}
+                  ${((adTypeStats.interstitial * adReward) + (adTypeStats.popup * adReward) + (adTypeStats.inapp * adReward)).toFixed(3)}
                 </p>
                 <p className="text-sm text-gray-400">Today's Earn</p>
               </div>
@@ -339,11 +356,12 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         <CardContent className="p-4">
           <h3 className="text-lg font-semibold text-blue-300 mb-2">Instructions:</h3>
           <ul className="text-sm text-blue-200 space-y-1">
+            <li>• Each ad is exactly 20 seconds duration</li>
             <li>• Earn $0.005 USDT for each advertisement you watch</li>
             <li>• Each ad type has a limit of {maxAdsPerType} per day</li>
             <li>• You can watch ads after limit but won't earn rewards</li>
-            <li>• Three different ad types with varying durations</li>
             <li>• All earnings are added to your balance instantly</li>
+            <li>• Progress is tracked in real-time</li>
           </ul>
         </CardContent>
       </Card>
