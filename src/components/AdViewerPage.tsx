@@ -38,14 +38,14 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const [dailyLimit] = useState(50);
   const { toast } = useToast();
 
-  // Sample ads data
+  // Sample ads data - restored original reward amount
   const sampleAds = [
     {
       id: 1,
       title: "Crypto Exchange Platform",
       description: "Trade cryptocurrencies safely and securely",
       duration: 15,
-      reward: 0.001,
+      reward: 0.005, // Restored to original $0.005
       category: "Finance"
     },
     {
@@ -53,7 +53,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       title: "Online Shopping Deal",
       description: "Get 50% off on electronics and gadgets",
       duration: 20,
-      reward: 0.002,
+      reward: 0.005, // Restored to original $0.005
       category: "Shopping"
     },
     {
@@ -61,7 +61,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       title: "Mobile Gaming App",
       description: "Download and play the latest mobile game",
       duration: 25,
-      reward: 0.001,
+      reward: 0.005, // Restored to original $0.005
       category: "Gaming"
     },
     {
@@ -69,7 +69,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       title: "Investment Platform",
       description: "Start investing with just $10 minimum",
       duration: 30,
-      reward: 0.003,
+      reward: 0.005, // Restored to original $0.005
       category: "Investment"
     }
   ];
@@ -164,25 +164,40 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     try {
       // Update user balance
       const newBalance = userBalance + currentAd.reward;
-      await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
-      updateUserBalance(newBalance);
+      const balanceSuccess = await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
       
-      // Increment ads watched count
-      const success = await dbService.incrementUserAdsWatched(userInfo.id.toString());
-      if (success) {
-        const newAdsCount = adsWatchedToday + 1;
-        setAdsWatchedToday(newAdsCount);
-        updateAdsWatched(newAdsCount);
-        setCanWatch(newAdsCount < dailyLimit);
+      if (balanceSuccess) {
+        updateUserBalance(newBalance);
         
-        // Log activity
-        await dbService.logActivity(userInfo.id.toString(), 'ad_watch', currentAd.reward);
+        // Increment ads watched count
+        const adSuccess = await dbService.incrementUserAdsWatched(userInfo.id.toString());
+        if (adSuccess) {
+          const newAdsCount = adsWatchedToday + 1;
+          setAdsWatchedToday(newAdsCount);
+          updateAdsWatched(newAdsCount);
+          setCanWatch(newAdsCount < dailyLimit);
+          
+          // Log activity
+          await dbService.logActivity(userInfo.id.toString(), 'ad_watch', currentAd.reward);
+          
+          toast({
+            title: "Ad Completed!",
+            description: `You earned $${currentAd.reward.toFixed(3)} USDT!`,
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to update ad count",
+            variant: "destructive"
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update balance",
+          variant: "destructive"
+        });
       }
-      
-      toast({
-        title: "Ad Completed!",
-        description: `You earned $${currentAd.reward.toFixed(3)} USDT!`,
-      });
       
       setCountdown(0);
     } catch (error) {
@@ -238,7 +253,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         <Card className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 border-green-500/30">
           <CardContent className="p-4 text-center">
             <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
-            <p className="text-white font-bold text-lg">${(adsWatchedToday * 0.001).toFixed(3)}</p>
+            <p className="text-white font-bold text-lg">${(adsWatchedToday * 0.005).toFixed(3)}</p>
             <p className="text-gray-400 text-sm">Earned</p>
           </CardContent>
         </Card>
