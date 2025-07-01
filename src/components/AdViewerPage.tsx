@@ -2,7 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Clock, Eye, Play, Zap, Gift, Monitor } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { 
+  Play, 
+  Pause, 
+  RotateCcw, 
+  DollarSign, 
+  Clock, 
+  Eye,
+  CheckCircle,
+  AlertCircle,
+  Zap
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAdmin } from '../contexts/AdminContext';
 import { dbService } from '../services/database';
@@ -11,358 +23,362 @@ interface AdViewerPageProps {
   userInfo: any;
   userBalance: number;
   updateUserBalance: (newBalance: number) => void;
-}
-
-// Declare the ad SDK function
-declare global {
-  function show_9506527(type?: string | object): Promise<void>;
+  updateAdsWatched: (newCount: number) => void;
 }
 
 const AdViewerPage: React.FC<AdViewerPageProps> = ({ 
   userInfo, 
   userBalance, 
-  updateUserBalance 
+  updateUserBalance,
+  updateAdsWatched 
 }) => {
-  const [adsWatchedToday, setAdsWatchedToday] = useState(0);
-  const [adTypeStats, setAdTypeStats] = useState({
-    interstitial: 0,
-    popup: 0,
-    inapp: 0
-  });
   const [isWatching, setIsWatching] = useState(false);
-  const [watchingType, setWatchingType] = useState<string>('');
-  const [countdown, setCountdown] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(20); // 20 seconds for all ads
+  const [progress, setProgress] = useState(0);
+  const [adsWatchedToday, setAdsWatchedToday] = useState(0);
+  const [canEarn, setCanEarn] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const { toast } = useToast();
   const { settings } = useAdmin();
 
-  const maxAdsPerType = 30; // 30 limit for each ad type
-  const totalMaxAds = maxAdsPerType * 3; // 90 total
-  const adReward = 0.005; // $0.005 per ad
-  const adDuration = 20; // All ads are 20 seconds
-
-  const adTypes = [
-    {
-      id: 'interstitial',
-      title: 'Rewarded Interstitial',
-      description: 'Native banner with reward for viewing',
-      icon: <Gift className="w-6 h-6" />,
-      color: 'from-green-600 to-emerald-600',
-      reward: adReward,
-      duration: adDuration,
-      count: adTypeStats.interstitial
-    },
-    {
-      id: 'popup',
-      title: 'Rewarded Popup',
-      description: 'Direct offer page with reward',
-      icon: <Zap className="w-6 h-6" />,
-      color: 'from-blue-600 to-cyan-600',
-      reward: adReward,
-      duration: adDuration,
-      count: adTypeStats.popup
-    },
-    {
-      id: 'inapp',
-      title: 'In-App Interstitial',
-      description: 'Native banner shown automatically',
-      icon: <Monitor className="w-6 h-6" />,
-      color: 'from-purple-600 to-pink-600',
-      reward: adReward,
-      duration: adDuration,
-      count: adTypeStats.inapp
-    }
-  ];
+  const adDuration = 20; // Fixed 20 seconds
+  const dailyLimit = parseInt(settings.dailyAdLimit) || 30;
+  const rewardRate = parseFloat(settings.adRewardRate) || 0.050;
 
   useEffect(() => {
-    loadTodayStats();
-  }, []);
+    loadUserAdData();
+  }, [userInfo]);
 
   useEffect(() => {
-    if (countdown > 0 && isWatching) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
+    let interval: NodeJS.Timeout;
+    
+    if (isWatching && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft(prev => {
+          const newTime = prev - 1;
+          setProgress(((adDuration - newTime) / adDuration) * 100);
+          return newTime;
+        });
       }, 1000);
-      return () => clearTimeout(timer);
-    } else if (countdown === 0 && isWatching) {
-      handleAdComplete();
+    } else if (isWatching && timeLeft === 0) {
+      completeAdWatching();
     }
-  }, [countdown, isWatching]);
 
-  const loadTodayStats = async () => {
-    if (userInfo) {
+    return () => clearInterval(interval);
+  }, [isWatching, timeLeft]);
+
+  const loadUserAdData = async () => {
+    if (userInfo?.id) {
       try {
         const user = await dbService.getUserByTelegramId(userInfo.id.toString());
         if (user) {
-          setAdsWatchedToday(user.ads_watched_today || 0);
-          
-          // Load individual ad type stats from activities
-          const activities = await dbService.getUserActivities(userInfo.id.toString());
-          const today = new Date().toDateString();
-          const todayActivities = activities.filter(activity => 
-            new Date(activity.activity_date).toDateString() === today
-          );
-          
-          const stats = {
-            interstitial: todayActivities.filter(a => a.activity_type === 'ad_watch_interstitial').length,
-            popup: todayActivities.filter(a => a.activity_type === 'ad_watch_popup').length,
-            inapp: todayActivities.filter(a => a.activity_type === 'ad_watch_inapp').length
-          };
-          
-          setAdTypeStats(stats);
-          console.log('Loaded ad stats:', stats);
+          const watchedToday = user.ads_watched_today || 0;
+          setAdsWatchedToday(watchedToday);
+          setCanEarn(watchedToday < dailyLimit);
+          updateAdsWatched(watchedToday);
+          console.log('User ad data loaded:', { watchedToday, dailyLimit, canEarn: watchedToday < dailyLimit });
         }
       } catch (error) {
-        console.error('Error loading today stats:', error);
+        console.error('Error loading user ad data:', error);
+      } finally {
+        setIsLoading(false);
       }
     }
   };
 
-  const handleAdComplete = async () => {
-    setIsWatching(false);
-    const currentAdType = watchingType;
-    setWatchingType('');
+  const startWatchingAd = () => {
+    if (!userInfo) return;
     
-    console.log(`Ad completed: ${currentAdType}`);
-    
-    // Check if this ad type is under limit
-    const currentTypeCount = adTypeStats[currentAdType as keyof typeof adTypeStats] || 0;
-    const canEarn = currentTypeCount < maxAdsPerType;
-    
-    console.log(`Current ${currentAdType} count: ${currentTypeCount}, Can earn: ${canEarn}`);
-    
-    try {
-      // Always increment the total ad count
-      await dbService.incrementUserAdsWatched(userInfo.id.toString());
-      console.log('Incremented total ads watched');
-      
-      // Log the specific ad type activity
-      await dbService.logActivity(userInfo.id.toString(), `ad_watch_${currentAdType}`, canEarn ? adReward : 0);
-      console.log(`Logged activity: ad_watch_${currentAdType}, reward: ${canEarn ? adReward : 0}`);
-      
-      // Update balance only if under limit
-      if (canEarn) {
-        const newBalance = userBalance + adReward;
-        updateUserBalance(newBalance);
-        console.log(`Updated balance: ${newBalance}`);
-
-        toast({
-          title: "Reward Earned! 🎉",
-          description: `You earned $${adReward.toFixed(3)} USDT`,
-        });
-      } else {
-        toast({
-          title: "Ad Watched!",
-          description: `Daily limit reached for ${currentAdType}. No reward this time.`,
-          variant: "destructive"
-        });
-      }
-
-      // Update local stats
-      setAdsWatchedToday(prev => {
-        const newCount = prev + 1;
-        console.log(`Updated total ads watched today: ${newCount}`);
-        return newCount;
-      });
-      
-      setAdTypeStats(prev => {
-        const newStats = {
-          ...prev,
-          [currentAdType]: prev[currentAdType as keyof typeof prev] + 1
-        };
-        console.log(`Updated ad type stats:`, newStats);
-        return newStats;
-      });
-
-    } catch (error) {
-      console.error('Error processing earning:', error);
-      toast({
-        title: "Error",
-        description: "Failed to process reward",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const watchAd = async (adType: string, duration: number) => {
-    if (isWatching) return;
-
-    console.log(`Starting ${adType} ad for ${duration} seconds...`);
     setIsWatching(true);
-    setWatchingType(adType);
-    setCountdown(duration);
+    setTimeLeft(adDuration);
+    setProgress(0);
+    
+    toast({
+      title: "অ্যাড শুরু হয়েছে!",
+      description: `${adDuration} সেকেন্ড মনোযোগ সহকারে দেখুন`,
+    });
+  };
 
+  const completeAdWatching = async () => {
+    if (!userInfo) return;
+
+    setIsWatching(false);
+    setProgress(100);
+    
     try {
-      if (adType === 'interstitial') {
-        await show_9506527();
-      } else if (adType === 'popup') {
-        await show_9506527('pop');
-      } else if (adType === 'inapp') {
-        await show_9506527({
-          type: 'inApp',
-          inAppSettings: {
-            frequency: 1,
-            capping: 0.05,
-            interval: 10,
-            timeout: 3,
-            everyPage: false
+      // Always increment the ad counter
+      const success = await dbService.incrementUserAdsWatched(userInfo.id.toString());
+      
+      if (success) {
+        const newAdsWatched = adsWatchedToday + 1;
+        setAdsWatchedToday(newAdsWatched);
+        updateAdsWatched(newAdsWatched);
+        
+        // Only add balance if within daily limit
+        if (canEarn && newAdsWatched <= dailyLimit) {
+          const newBalance = userBalance + rewardRate;
+          const balanceSuccess = await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
+          
+          if (balanceSuccess) {
+            updateUserBalance(newBalance);
+            await dbService.logActivity(userInfo.id.toString(), 'ad_watch', rewardRate);
+            
+            toast({
+              title: "অ্যাড সম্পন্ন! 🎉",
+              description: `আপনি $${rewardRate.toFixed(3)} USDT পেয়েছেন!`,
+            });
           }
-        });
+        } else {
+          toast({
+            title: "অ্যাড সম্পন্ন!",
+            description: "দৈনিক লিমিট শেষ - কোন রিওয়ার্ড যোগ হয়নি",
+            variant: "destructive"
+          });
+        }
+        
+        // Update earning eligibility
+        setCanEarn(newAdsWatched < dailyLimit);
       }
-
-      toast({
-        title: "Ad Started",
-        description: `Watch for ${duration} seconds to earn reward`,
-      });
     } catch (error) {
-      console.error('Ad error:', error);
-      setIsWatching(false);
-      setWatchingType('');
+      console.error('Error completing ad:', error);
       toast({
-        title: "Ad Loading Error",
-        description: "Please try again",
+        title: "ত্রুটি",
+        description: "অ্যাড সম্পন্ন করতে সমস্যা হয়েছে",
         variant: "destructive"
       });
     }
+    
+    // Reset for next ad
+    setTimeout(() => {
+      setTimeLeft(adDuration);
+      setProgress(0);
+    }, 2000);
   };
+
+  const pauseAd = () => {
+    setIsWatching(false);
+    toast({
+      title: "অ্যাড পজ করা হয়েছে",
+      description: "আবার চালু করতে Play বাটনে ক্লিক করুন",
+      variant: "destructive"
+    });
+  };
+
+  const resetAd = () => {
+    setIsWatching(false);
+    setTimeLeft(adDuration);
+    setProgress(0);
+    toast({
+      title: "অ্যাড রিসেট করা হয়েছে",
+      description: "নতুন করে শুরু করুন",
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-4 space-y-6">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">অ্যাড ডেটা লোড হচ্ছে...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const remainingAds = Math.max(0, dailyLimit - adsWatchedToday);
+  const progressPercentage = Math.min(100, (adsWatchedToday / dailyLimit) * 100);
 
   return (
     <div className="p-4 space-y-6">
       {/* Header */}
       <div className="text-center py-4">
-        <h1 className="text-2xl font-bold text-white mb-2 flex items-center justify-center">
-          <Eye className="w-6 h-6 mr-2" />
-          Professional Watch & Earn
-        </h1>
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-400">Today's Progress:</p>
-              <p className="text-green-400 font-semibold text-lg">
-                {adsWatchedToday}/{totalMaxAds}
-              </p>
+        <h1 className="text-2xl font-bold text-white mb-2">প্রফেশনাল অ্যাড ভিউয়ার</h1>
+        <p className="text-gray-400">
+          প্রতিটি অ্যাড {adDuration} সেকেন্ড - ${rewardRate.toFixed(3)} USDT রিওয়ার্ড
+        </p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="bg-gradient-to-r from-green-600/20 to-blue-600/20 border-green-500/30">
+          <CardContent className="p-4 text-center">
+            <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-white font-bold text-lg">${userBalance.toFixed(3)}</p>
+            <p className="text-gray-400 text-sm">মোট ব্যালেন্স</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30">
+          <CardContent className="p-4 text-center">
+            <Eye className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+            <p className="text-white font-bold text-lg">{adsWatchedToday}/{dailyLimit}</p>
+            <p className="text-gray-400 text-sm">আজকের অ্যাড</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Daily Progress */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center justify-between">
+            <span>দৈনিক অগ্রগতি</span>
+            <Badge variant={canEarn ? "default" : "destructive"} className="bg-blue-600/20 text-blue-300">
+              {remainingAds} বাকি
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Progress value={progressPercentage} className="w-full h-3" />
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">সম্পন্ন: {adsWatchedToday}</span>
+              <span className="text-gray-400">লক্ষ্য: {dailyLimit}</span>
             </div>
-            <div>
-              <p className="text-gray-400">Per Ad Reward:</p>
-              <p className="text-yellow-400 font-semibold text-lg">
-                $0.005 USDT
-              </p>
-            </div>
+            
+            {!canEarn && (
+              <div className="flex items-center space-x-2 p-3 bg-orange-600/20 border border-orange-500/30 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-orange-400" />
+                <p className="text-orange-300 text-sm">
+                  দৈনিক লিমিট শেষ! অ্যাড দেখতে পারবেন কিন্তু রিওয়ার্ড পাবেন না।
+                </p>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Ad Types */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-white text-center mb-4">
-          Three Ways to Earn from Ads
-        </h2>
+      {/* Ad Viewer */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center">
+            <Zap className="w-5 h-5 mr-2 text-yellow-400" />
+            প্রিমিয়াম অ্যাড ভিউয়ার
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Ad Display Area */}
+          <div className="bg-gray-900 rounded-lg p-8 text-center border-2 border-dashed border-gray-600">
+            {!isWatching && timeLeft === adDuration ? (
+              <div className="space-y-4">
+                <Play className="w-16 h-16 text-blue-400 mx-auto" />
+                <h3 className="text-white text-xl font-bold">অ্যাড দেখার জন্য প্রস্তুত</h3>
+                <p className="text-gray-400">
+                  {adDuration} সেকেন্ড মনোযোগ সহকারে দেখুন এবং ${rewardRate.toFixed(3)} USDT আয় করুন
+                </p>
+                {canEarn && (
+                  <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3">
+                    <p className="text-green-300 text-sm">✅ রিওয়ার্ড পাওয়ার জন্য যোগ্য</p>
+                  </div>
+                )}
+              </div>
+            ) : isWatching ? (
+              <div className="space-y-4">
+                <div className="relative">
+                  <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mx-auto flex items-center justify-center">
+                    <Clock className="w-12 h-12 text-white" />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-white">{timeLeft}</span>
+                  </div>
+                </div>
+                <h3 className="text-white text-xl font-bold">অ্যাড চলছে...</h3>
+                <div className="space-y-2">
+                  <Progress value={progress} className="w-full h-4" />
+                  <p className="text-gray-400">
+                    {timeLeft} সেকেন্ড বাকি • {progress.toFixed(0)}% সম্পন্ন
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <CheckCircle className="w-16 h-16 text-green-400 mx-auto" />
+                <h3 className="text-white text-xl font-bold">অ্যাড সম্পন্ন!</h3>
+                <p className="text-gray-400">
+                  {canEarn ? `আপনি $${rewardRate.toFixed(3)} USDT পেয়েছেন!` : 'দৈনিক লিমিট শেষ'}
+                </p>
+              </div>
+            )}
+          </div>
 
-        {adTypes.map((ad) => (
-          <Card key={ad.id} className="bg-gray-800 border-gray-700 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-lg bg-gradient-to-r ${ad.color}`}>
-                    {ad.icon}
-                  </div>
-                  <div>
-                    <h3 className="text-lg">{ad.title}</h3>
-                    <p className="text-sm text-gray-400 font-normal">
-                      {ad.description}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-green-400 font-bold text-lg">
-                    +${ad.reward.toFixed(3)}
-                  </p>
-                  <p className="text-gray-400 text-sm">
-                    {ad.count}/{maxAdsPerType}
-                  </p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isWatching && watchingType === ad.id ? (
-                <div className="text-center space-y-4">
-                  <div className="bg-orange-500/20 rounded-lg p-4 border border-orange-500/30">
-                    <div className="flex items-center justify-center space-x-2 text-orange-400 mb-2">
-                      <Clock className="w-5 h-5" />
-                      <span className="text-2xl font-bold">{countdown}s</span>
-                    </div>
-                    <p className="text-sm text-orange-300">Ad is playing, please wait...</p>
-                    <div className="w-full bg-gray-600 rounded-full h-3 mt-3">
-                      <div 
-                        className="bg-orange-400 h-3 rounded-full transition-all duration-1000"
-                        style={{ width: `${((ad.duration - countdown) / ad.duration) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
+          {/* Controls */}
+          <div className="flex justify-center space-x-4">
+            {!isWatching && timeLeft === adDuration ? (
+              <Button
+                onClick={startWatchingAd}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8 py-3"
+                disabled={!userInfo}
+              >
+                <Play className="w-5 h-5 mr-2" />
+                অ্যাড শুরু করুন
+              </Button>
+            ) : isWatching ? (
+              <>
                 <Button
-                  onClick={() => watchAd(ad.id, ad.duration)}
-                  disabled={isWatching}
-                  className={`w-full h-12 text-lg font-semibold bg-gradient-to-r ${ad.color} hover:opacity-90 disabled:opacity-50 transition-all duration-300`}
+                  onClick={pauseAd}
+                  variant="outline"
+                  className="border-gray-600 text-white hover:bg-gray-700"
                 >
-                  <Play className="w-5 h-5 mr-2" />
-                  {isWatching ? 'Another ad is playing...' : `Watch ${ad.title} (20s)`}
+                  <Pause className="w-4 h-4 mr-2" />
+                  পজ
                 </Button>
-              )}
-              
-              {ad.count >= maxAdsPerType && (
-                <div className="mt-2 bg-red-500/20 border border-red-500/30 rounded-lg p-2">
-                  <p className="text-red-300 text-sm text-center">
-                    ⚠️ Daily limit reached! You can still watch ads but won't earn rewards.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <Button
+                  onClick={resetAd}
+                  variant="outline"
+                  className="border-gray-600 text-white hover:bg-gray-700"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  রিসেট
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={startWatchingAd}
+                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 px-8 py-3"
+                disabled={!userInfo}
+              >
+                <Play className="w-5 h-5 mr-2" />
+                পরবর্তী অ্যাড
+              </Button>
+            )}
+          </div>
 
-      {/* Stats Card */}
-      <Card className="bg-gradient-to-r from-gray-800 to-gray-700 border-gray-600">
-        <CardContent className="p-6">
-          <div className="text-center space-y-2">
-            <h3 className="text-lg font-semibold text-white">Today's Statistics</h3>
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-400">
-                  {adsWatchedToday}
-                </p>
-                <p className="text-sm text-gray-400">Ads Watched</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-yellow-400">
-                  ${((adTypeStats.interstitial * adReward) + (adTypeStats.popup * adReward) + (adTypeStats.inapp * adReward)).toFixed(3)}
-                </p>
-                <p className="text-sm text-gray-400">Today's Earn</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-blue-400">
-                  {Math.max(0, totalMaxAds - adsWatchedToday)}
-                </p>
-                <p className="text-sm text-gray-400">Remaining</p>
-              </div>
+          {/* Info Cards */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-blue-600/10 p-4 rounded-lg text-center">
+              <Clock className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+              <p className="text-white font-medium">প্রতি অ্যাড</p>
+              <p className="text-gray-400 text-sm">{adDuration} সেকেন্ড</p>
+            </div>
+            <div className="bg-green-600/10 p-4 rounded-lg text-center">
+              <DollarSign className="w-6 h-6 text-green-400 mx-auto mb-2" />
+              <p className="text-white font-medium">রিওয়ার্ড</p>
+              <p className="text-gray-400 text-sm">${rewardRate.toFixed(3)} USDT</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Instructions */}
-      <Card className="bg-blue-600/20 border-blue-500/30">
-        <CardContent className="p-4">
-          <h3 className="text-lg font-semibold text-blue-300 mb-2">Instructions:</h3>
-          <ul className="text-sm text-blue-200 space-y-1">
-            <li>• Each ad is exactly 20 seconds duration</li>
-            <li>• Earn $0.005 USDT for each advertisement you watch</li>
-            <li>• Each ad type has a limit of {maxAdsPerType} per day</li>
-            <li>• You can watch ads after limit but won't earn rewards</li>
-            <li>• All earnings are added to your balance instantly</li>
-            <li>• Progress is tracked in real-time</li>
-          </ul>
+      {/* Tips */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white">💡 অ্যাড দেখার টিপস</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+              <p className="text-gray-300 text-sm">পুরো সময় ধরে মনোযোগ সহকারে দেখুন</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+              <p className="text-gray-300 text-sm">অ্যাড চলাকালীন অন্য ট্যাব খুলবেন না</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+              <p className="text-gray-300 text-sm">দৈনিক {dailyLimit}টি অ্যাড দেখে সর্বোচ্চ আয় করুন</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

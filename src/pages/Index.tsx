@@ -8,6 +8,7 @@ import AdViewerPage from '../components/AdViewerPage';
 import ReferralPage from '../components/ReferralPage';
 import WithdrawPage from '../components/WithdrawPage';
 import JoinChannelsPage from '../components/JoinChannelsPage';
+import TasksPage from '../components/TasksPage';
 import BottomNavigation from '../components/BottomNavigation';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -27,6 +28,7 @@ const Index = () => {
   const [referralCount, setReferralCount] = useState(0);
   const [withdrawalEnabled, setWithdrawalEnabled] = useState(false);
   const [userBalance, setUserBalance] = useState(0);
+  const [adsWatched, setAdsWatched] = useState(0);
   const { isChannelVerificationEnabled, loading: adminLoading } = useAdmin();
 
   const requiredChannels = [
@@ -115,12 +117,14 @@ const Index = () => {
           console.log('Database user data:', dbUser);
           setUserBalance(dbUser.balance);
           setReferralCount(dbUser.referral_count || 0);
+          setAdsWatched(dbUser.ads_watched_today || 0);
           setHasJoinedChannels(dbUser.channels_joined || !isChannelVerificationEnabled);
           setWithdrawalEnabled((dbUser.referral_count || 0) >= 5);
           
           console.log('User state updated:', {
             balance: dbUser.balance,
             referralCount: dbUser.referral_count,
+            adsWatched: dbUser.ads_watched_today,
             hasJoinedChannels: dbUser.channels_joined
           });
         }
@@ -147,6 +151,11 @@ const Index = () => {
     if (userInfo) {
       await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
     }
+  };
+
+  const updateAdsWatched = (newCount: number) => {
+    console.log('Updating ads watched count:', newCount);
+    setAdsWatched(newCount);
   };
 
   // Function to refresh referral count
@@ -203,11 +212,20 @@ const Index = () => {
               userInfo={userInfo} 
               referralCount={referralCount}
               userBalance={userBalance}
+              adsWatched={adsWatched}
               updateUserBalance={updateUserBalance}
             />
           } />
           <Route path="/ads" element={
             <AdViewerPage 
+              userInfo={userInfo}
+              userBalance={userBalance}
+              updateUserBalance={updateUserBalance}
+              updateAdsWatched={updateAdsWatched}
+            />
+          } />
+          <Route path="/tasks" element={
+            <TasksPage 
               userInfo={userInfo}
               userBalance={userBalance}
               updateUserBalance={updateUserBalance}

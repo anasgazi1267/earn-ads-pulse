@@ -1,38 +1,42 @@
 
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Eye, Users, DollarSign } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Home, Play, Users, DollarSign, Trophy } from 'lucide-react';
 
-const BottomNavigation = () => {
-  const location = useLocation();
+const BottomNavigation: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const navItems = [
-    { icon: Home, label: 'Home', path: '/' },
-    { icon: Eye, label: 'Ads', path: '/ads' },
-    { icon: Users, label: 'Referral', path: '/referral' },
-    { icon: DollarSign, label: 'Withdraw', path: '/withdraw' },
+    { icon: Home, label: 'হোম', path: '/' },
+    { icon: Play, label: 'অ্যাড', path: '/ads' },
+    { icon: Trophy, label: 'টাস্ক', path: '/tasks' },
+    { icon: Users, label: 'রেফার', path: '/referral' },
+    { icon: DollarSign, label: 'উইথড্র', path: '/withdraw' },
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
-      <div className="grid grid-cols-4 gap-1">
+    <div className="fixed bottom-0 left-0 right-0 bg-gray-800/95 backdrop-blur-sm border-t border-gray-700 z-50">
+      <div className="flex justify-around items-center py-2">
         {navItems.map((item) => {
-          const Icon = item.icon;
           const isActive = location.pathname === item.path;
+          const Icon = item.icon;
           
           return (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center justify-center py-3 px-2 transition-colors ${
-                isActive
-                  ? 'text-blue-400 bg-gray-700'
-                  : 'text-gray-400 hover:text-white'
+              className={`flex flex-col items-center py-2 px-3 rounded-lg transition-all duration-200 ${
+                isActive 
+                  ? 'text-blue-400 bg-blue-600/20' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
               }`}
             >
-              <Icon className="w-5 h-5 mb-1" />
+              <Icon className={`w-6 h-6 mb-1 ${isActive ? 'text-blue-400' : ''}`} />
               <span className="text-xs font-medium">{item.label}</span>
+              {isActive && (
+                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-400 rounded-full"></div>
+              )}
             </button>
           );
         })}

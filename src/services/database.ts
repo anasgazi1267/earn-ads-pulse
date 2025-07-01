@@ -197,21 +197,40 @@ export class DatabaseService {
     try {
       // First get the current user data
       const user = await this.getUserByTelegramId(telegramId);
-      if (!user) return false;
+      if (!user) {
+        console.error('User not found for telegram ID:', telegramId);
+        return false;
+      }
 
       const today = new Date().toDateString();
       const isNewDay = user.last_activity_date !== today;
       
+      console.log('Incrementing ads watched:', {
+        telegramId,
+        currentCount: user.ads_watched_today,
+        isNewDay,
+        today,
+        lastActivity: user.last_activity_date
+      });
+      
+      const newAdsCount = isNewDay ? 1 : (user.ads_watched_today || 0) + 1;
+      
       const { error } = await supabase
         .from('users')
         .update({
-          ads_watched_today: isNewDay ? 1 : user.ads_watched_today + 1,
+          ads_watched_today: newAdsCount,
           last_activity_date: today,
           updated_at: new Date().toISOString()
         })
         .eq('telegram_id', telegramId);
 
-      return !error;
+      if (error) {
+        console.error('Error updating ads watched:', error);
+        return false;
+      }
+
+      console.log(`✅ Successfully updated ads watched for ${telegramId}: ${newAdsCount}`);
+      return true;
     } catch (error) {
       console.error('Error incrementing ads watched:', error);
       return false;

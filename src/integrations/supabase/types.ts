@@ -57,6 +57,42 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          reward_amount: number
+          task_type: string
+          task_url: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          reward_amount?: number
+          task_type: string
+          task_url: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          reward_amount?: number
+          task_type?: string
+          task_url?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_activities: {
         Row: {
           activity_date: string | null
@@ -83,6 +119,38 @@ export type Database = {
           telegram_id?: string
         }
         Relationships: []
+      }
+      user_tasks: {
+        Row: {
+          completed_at: string
+          id: string
+          reward_earned: number
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          reward_earned?: number
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          reward_earned?: number
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
