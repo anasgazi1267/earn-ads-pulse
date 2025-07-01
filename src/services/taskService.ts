@@ -1,5 +1,9 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
+
+type TaskRow = Database['public']['Tables']['tasks']['Row'];
+type UserTaskRow = Database['public']['Tables']['user_tasks']['Row'];
 
 export interface Task {
   id: string;
@@ -37,7 +41,11 @@ export class TaskService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(task => ({
+        ...task,
+        task_type: task.task_type as Task['task_type'],
+        description: task.description || undefined
+      }));
     } catch (error) {
       console.error('Error fetching tasks:', error);
       return [];
@@ -66,6 +74,8 @@ export class TaskService {
 
       return (tasks || []).map(task => ({
         ...task,
+        task_type: task.task_type as Task['task_type'],
+        description: task.description || undefined,
         completed: completedTaskIds.has(task.id),
         completion_date: completedTasks?.find(ct => ct.task_id === task.id)?.completed_at
       }));
@@ -150,7 +160,14 @@ export class TaskService {
     try {
       const { error } = await supabase
         .from('tasks')
-        .insert(task);
+        .insert({
+          title: task.title,
+          description: task.description || null,
+          task_type: task.task_type,
+          task_url: task.task_url,
+          reward_amount: task.reward_amount,
+          is_active: task.is_active
+        });
 
       if (error) throw error;
       console.log('Task created successfully');
@@ -164,9 +181,18 @@ export class TaskService {
   // Admin: Update task
   async updateTask(taskId: string, updates: Partial<Task>): Promise<boolean> {
     try {
+      const updateData: any = {};
+      
+      if (updates.title !== undefined) updateData.title = updates.title;
+      if (updates.description !== undefined) updateData.description = updates.description || null;
+      if (updates.task_type !== undefined) updateData.task_type = updates.task_type;
+      if (updates.task_url !== undefined) updateData.task_url = updates.task_url;
+      if (updates.reward_amount !== undefined) updateData.reward_amount = updates.reward_amount;
+      if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
+
       const { error } = await supabase
         .from('tasks')
-        .update(updates)
+        .update(updateData)
         .eq('id', taskId);
 
       if (error) throw error;
@@ -187,7 +213,11 @@ export class TaskService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(task => ({
+        ...task,
+        task_type: task.task_type as Task['task_type'],
+        description: task.description || undefined
+      }));
     } catch (error) {
       console.error('Error fetching all tasks:', error);
       return [];
@@ -209,8 +239,12 @@ export class TaskService {
       if (error) throw error;
       
       return (data || []).map(item => ({
-        ...item,
-        task_title: item.tasks?.title || 'Unknown Task'
+        id: item.id,
+        user_id: item.user_id,
+        task_id: item.task_id,
+        completed_at: item.completed_at,
+        reward_earned: item.reward_earned,
+        task_title: (item.tasks as any)?.title || 'Unknown Task'
       }));
     } catch (error) {
       console.error('Error fetching user completed tasks:', error);
