@@ -13,7 +13,8 @@ import {
   Globe, 
   Users,
   DollarSign,
-  RefreshCw
+  RefreshCw,
+  Timer
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { taskService, TaskWithCompletion } from '../services/taskService';
@@ -29,11 +30,29 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
   const [loading, setLoading] = useState(true);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [taskTimers, setTaskTimers] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
   useEffect(() => {
     loadTasks();
   }, [userInfo]);
+
+  // Timer countdown effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTaskTimers(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(taskId => {
+          if (updated[taskId] > 0) {
+            updated[taskId] -= 1;
+          }
+        });
+        return updated;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const loadTasks = async () => {
     if (userInfo?.id) {
@@ -54,13 +73,34 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
     await loadTasks();
     setRefreshing(false);
     toast({
-      title: "রিফ্রেশ সম্পন্ন!",
-      description: "টাস্ক তালিকা আপডেট করা হয়েছে",
+      title: "Refreshed!",
+      description: "Task list has been updated",
+    });
+  };
+
+  const startTaskTimer = (taskId: string) => {
+    // Set random timer between 10-30 seconds
+    const waitTime = Math.floor(Math.random() * 21) + 10;
+    setTaskTimers(prev => ({ ...prev, [taskId]: waitTime }));
+    
+    toast({
+      title: "Task Started!",
+      description: `Please wait ${waitTime} seconds before claiming reward`,
     });
   };
 
   const handleCompleteTask = async (taskId: string) => {
     if (!userInfo?.id) return;
+
+    // Check if timer is still running
+    if (taskTimers[taskId] > 0) {
+      toast({
+        title: "Please Wait!",
+        description: `Wait ${taskTimers[taskId]} more seconds to complete this task`,
+        variant: "destructive"
+      });
+      return;
+    }
 
     setCompletingTask(taskId);
     try {
@@ -71,8 +111,8 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
         const reward = task?.reward_amount || 0;
         
         toast({
-          title: "টাস্ক সম্পন্ন!",
-          description: `আপনি $${reward.toFixed(3)} USDT পেয়েছেন!`,
+          title: "Task Completed!",
+          description: `You earned $${reward.toFixed(3)} USDT!`,
         });
 
         // Update local state
@@ -82,18 +122,25 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
             ? { ...t, completed: true, completion_date: new Date().toISOString() }
             : t
         ));
+
+        // Clear timer
+        setTaskTimers(prev => {
+          const updated = { ...prev };
+          delete updated[taskId];
+          return updated;
+        });
       } else {
         toast({
-          title: "ত্রুটি",
-          description: "টাস্ক সম্পন্ন করতে সমস্যা হয়েছে",
+          title: "Error",
+          description: "Failed to complete task",
           variant: "destructive"
         });
       }
     } catch (error) {
       console.error('Error completing task:', error);
       toast({
-        title: "ত্রুটি",
-        description: "টাস্ক সম্পন্ন করতে সমস্যা হয়েছে",
+        title: "Error",
+        description: "Failed to complete task",
         variant: "destructive"
       });
     } finally {
@@ -120,17 +167,17 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
   const getTaskTypeText = (taskType: string) => {
     switch (taskType) {
       case 'telegram_join':
-        return 'টেলিগ্রাম বট';
+        return 'Telegram Bot';
       case 'telegram_channel':
-        return 'টেলিগ্রাম চ্যানেল';
+        return 'Telegram Channel';
       case 'youtube_subscribe':
-        return 'ইউটিউব সাবস্ক্রাইব';
+        return 'YouTube Subscribe';
       case 'website_visit':
-        return 'ওয়েবসাইট ভিজিট';
+        return 'Website Visit';
       case 'social_follow':
-        return 'সোশ্যাল মিডিয়া';
+        return 'Social Media';
       default:
-        return 'অন্যান্য';
+        return 'Other';
     }
   };
 
@@ -143,7 +190,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
       <div className="p-4 space-y-6">
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">টাস্ক লোড হচ্ছে...</p>
+          <p className="text-gray-400">Loading tasks...</p>
         </div>
       </div>
     );
@@ -154,7 +201,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
       {/* Header */}
       <div className="text-center py-4">
         <div className="flex items-center justify-center space-x-2 mb-2">
-          <h1 className="text-2xl font-bold text-white">টাস্ক সেন্টার</h1>
+          <h1 className="text-2xl font-bold text-white">Task Center</h1>
           <Button
             onClick={refreshTasks}
             disabled={refreshing}
@@ -166,7 +213,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
           </Button>
         </div>
         <p className="text-gray-400">
-          টাস্ক সম্পন্ন করে USDT আয় করুন
+          Complete tasks to earn USDT
         </p>
       </div>
 
@@ -176,7 +223,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
           <CardContent className="p-4 text-center">
             <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
             <p className="text-white font-bold text-lg">{completedTasks.length}</p>
-            <p className="text-gray-400 text-sm">সম্পন্ন</p>
+            <p className="text-gray-400 text-sm">Completed</p>
           </CardContent>
         </Card>
 
@@ -184,7 +231,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
           <CardContent className="p-4 text-center">
             <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
             <p className="text-white font-bold text-lg">${totalEarned.toFixed(3)}</p>
-            <p className="text-gray-400 text-sm">আয়</p>
+            <p className="text-gray-400 text-sm">Earned</p>
           </CardContent>
         </Card>
 
@@ -192,7 +239,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
           <CardContent className="p-4 text-center">
             <Clock className="w-8 h-8 text-purple-400 mx-auto mb-2" />
             <p className="text-white font-bold text-lg">{availableTasks.length}</p>
-            <p className="text-gray-400 text-sm">উপলব্ধ</p>
+            <p className="text-gray-400 text-sm">Available</p>
           </CardContent>
         </Card>
       </div>
@@ -201,7 +248,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
       {availableTasks.length > 0 && (
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-white">উপলব্ধ টাস্ক</CardTitle>
+            <CardTitle className="text-white">Available Tasks</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {availableTasks.map((task) => (
@@ -224,30 +271,48 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
                         +${task.reward_amount.toFixed(3)} USDT
                       </span>
                     </div>
+                    {taskTimers[task.id] > 0 && (
+                      <div className="flex items-center space-x-2 mt-2">
+                        <Timer className="w-4 h-4 text-orange-400" />
+                        <span className="text-orange-400 text-sm">
+                          Wait {taskTimers[task.id]} seconds to claim
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex space-x-2">
                   <Button
-                    onClick={() => window.open(task.task_url, '_blank')}
+                    onClick={() => {
+                      window.open(task.task_url, '_blank');
+                      if (!taskTimers[task.id]) {
+                        startTaskTimer(task.id);
+                      }
+                    }}
                     variant="outline"
                     size="sm"
                     className="border-gray-600 text-white hover:bg-gray-700"
                   >
                     <ExternalLink className="w-4 h-4 mr-1" />
-                    ভিজিট
+                    Visit
                   </Button>
                   <Button
                     onClick={() => handleCompleteTask(task.id)}
-                    disabled={completingTask === task.id}
-                    className="bg-green-600 hover:bg-green-700"
+                    disabled={completingTask === task.id || taskTimers[task.id] > 0}
+                    className={`${taskTimers[task.id] > 0 ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
                     size="sm"
                   >
                     {completingTask === task.id ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : taskTimers[task.id] > 0 ? (
+                      <>
+                        <Timer className="w-4 h-4 mr-1" />
+                        {taskTimers[task.id]}s
+                      </>
                     ) : (
                       <>
                         <CheckCircle className="w-4 h-4 mr-1" />
-                        সম্পন্ন
+                        Complete
                       </>
                     )}
                   </Button>
@@ -262,7 +327,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
       {completedTasks.length > 0 && (
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-white">সম্পন্ন টাস্ক ({completedTasks.length})</CardTitle>
+            <CardTitle className="text-white">Completed Tasks ({completedTasks.length})</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {completedTasks.map((task) => (
@@ -275,7 +340,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
                   <div>
                     <h4 className="text-white font-medium">{task.title}</h4>
                     <p className="text-gray-400 text-sm">
-                      {task.completion_date && new Date(task.completion_date).toLocaleDateString('bn-BD')}
+                      {task.completion_date && new Date(task.completion_date).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -295,9 +360,9 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
         <Card className="bg-gray-800 border-gray-700">
           <CardContent className="p-8 text-center">
             <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-white text-lg font-medium mb-2">কোন টাস্ক পাওয়া যায়নি</h3>
+            <h3 className="text-white text-lg font-medium mb-2">No Tasks Found</h3>
             <p className="text-gray-400">
-              অ্যাডমিন শীঘ্রই নতুন টাস্ক যোগ করবেন
+              Admin will add new tasks soon
             </p>
           </CardContent>
         </Card>
