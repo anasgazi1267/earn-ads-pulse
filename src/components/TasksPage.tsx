@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +13,8 @@ import {
   Users,
   DollarSign,
   RefreshCw,
-  Timer
+  Timer,
+  Plus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { taskService, TaskWithCompletion } from '../services/taskService';
@@ -31,6 +31,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
   const [completingTask, setCompletingTask] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [taskTimers, setTaskTimers] = useState<Record<string, number>>({});
+  const [showContactPage, setShowContactPage] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -185,6 +186,67 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
   const availableTasks = tasks.filter(t => !t.completed);
   const totalEarned = completedTasks.reduce((sum, task) => sum + task.reward_amount, 0);
 
+  const ContactPage = () => (
+    <div className="p-4 space-y-6">
+      <div className="text-center py-4">
+        <h1 className="text-2xl font-bold text-white mb-2">Add Your Task</h1>
+        <p className="text-gray-400">Contact us to add your custom task</p>
+      </div>
+
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white text-center">Contact Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="text-center space-y-4">
+            <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 p-6 rounded-lg border border-blue-500/30">
+              <h3 className="text-white text-lg font-bold mb-4">Get in touch with us</h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-center space-x-3">
+                  <MessageCircle className="w-6 h-6 text-blue-400" />
+                  <div>
+                    <p className="text-gray-300 text-sm">Telegram Username</p>
+                    <p className="text-white font-bold">@Owner_USDTBot</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-center space-x-3">
+                  <Globe className="w-6 h-6 text-green-400" />
+                  <div>
+                    <p className="text-gray-300 text-sm">Phone Number</p>
+                    <p className="text-white font-bold">+8801305188972</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-700/50 p-4 rounded-lg">
+              <h4 className="text-white font-medium mb-2">How to Add Your Task</h4>
+              <div className="text-gray-300 text-sm space-y-1">
+                <p>• Contact us via Telegram or phone</p>
+                <p>• Provide task details and requirements</p>
+                <p>• We'll add your task to the platform</p>
+                <p>• Users will complete your task and earn rewards</p>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => setShowContactPage(false)}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              Back to Tasks
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  if (showContactPage) {
+    return <ContactPage />;
+  }
+
   if (loading) {
     return (
       <div className="p-4 space-y-6">
@@ -215,6 +277,17 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
         <p className="text-gray-400">
           Complete tasks to earn USDT
         </p>
+        
+        {/* Add Your Task Button */}
+        <div className="mt-4">
+          <Button
+            onClick={() => setShowContactPage(true)}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Your Task
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

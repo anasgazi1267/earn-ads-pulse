@@ -6,16 +6,16 @@ export interface User {
   username?: string;
   first_name?: string;
   last_name?: string;
-  balance: number;
-  referral_count: number;
-  channels_joined: boolean;
-  channel_join_date?: string;
-  ads_watched_today: number;
-  spins_used_today: number;
-  last_activity_date: string;
+  balance?: number;
+  referral_count?: number;
   referred_by?: string;
-  created_at: string;
-  updated_at: string;
+  channels_joined?: boolean;
+  channel_join_date?: string;
+  ads_watched_today?: number;
+  spins_used_today?: number;
+  last_activity_date?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AdminSetting {
@@ -31,11 +31,11 @@ export interface WithdrawalRequest {
   telegram_id: string;
   username: string;
   amount: number;
-  withdrawal_method: string;
   wallet_address: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
+  withdrawal_method: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UserActivity {
@@ -295,56 +295,60 @@ export class DatabaseService {
     }
   }
 
-  // CRITICAL FIX: Improved referral system
-  async processReferral(referrerTelegramId: string, referredTelegramId: string): Promise<boolean> {
+  // Fixed referral system
+  async processReferral(referrerTelegramId: string, newUserTelegramId: string): Promise<boolean> {
     try {
-      console.log('🔄 Processing referral:', { referrerTelegramId, referredTelegramId });
+      console.log(`Processing referral: ${referrerTelegramId} -> ${newUserTelegramId}`);
       
-      // Prevent self-referral
-      if (referrerTelegramId === referredTelegramId) {
-        console.log('❌ Self-referral prevented');
-        return false;
-      }
-      
-      // Check if referral already exists to prevent duplicates
-      const { data: existingReferral } = await supabase
-        .from('referrals')
-        .select('id')
-        .eq('referrer_telegram_id', referrerTelegramId)
-        .eq('referred_telegram_id', referredTelegramId)
+      // Check if referrer exists
+      const { data: referrer, error: referrerError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('telegram_id', referrerTelegramId)
         .single();
 
-      if (existingReferral) {
-        console.log('❌ Referral already exists, skipping...');
-        return true;
-      }
-
-      // Get referrer user to check if they exist
-      const referrer = await this.getUserByTelegramId(referrerTelegramId);
-      if (!referrer) {
-        console.log('❌ Referrer not found:', referrerTelegramId);
+      if (referrerError || !referrer) {
+        console.error('Referrer not found:', referrerError);
         return false;
       }
 
-      // Create referral record FIRST
-      const { error: referralError } = await supabase
-        .from('referrals')
-        .insert({
-          referrer_telegram_id: referrerTelegramId,
-          referred_telegram_id: referredTelegramId,
-          earnings: 0.01 // 1 cent bonus for referral
-        });
+      // Check if new user already has a referrer
+      const { data: newUser, error: newUserError } = await supabase
+        .from('users')
+        .select('referred_by')
+        .eq('telegram_id', newUserTelegramId)
+        .single();
 
-      if (referralError) {
-        console.error('❌ Error creating referral record:', referralError);
+      if (newUserError || !newUser) {
+        console.error('New user not found:', newUserError);
         return false;
       }
 
-      // Update referrer's count and balance using database transaction
+      if (newUser.referred_by) {
+        console.log('User already has a referrer');
+        return false;
+      }
+
+      // Update new user with referrer
+      const { error: updateUserError } = await supabase
+        .from('users')
+        .update({ 
+          referred_by: referrerTelegramId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('telegram_id', newUserTelegramId);
+
+      if (updateUserError) {
+        console.error('Error updating new user:', updateUserError);
+        return false;
+      }
+
+      // Increment referrer's count and give bonus
+      const referralBonus = 0.10; // $0.10 per referral
       const newReferralCount = (referrer.referral_count || 0) + 1;
-      const newBalance = referrer.balance + 0.01; // Add 1 cent for referral
-      
-      const { error: updateError } = await supabase
+      const newBalance = (referrer.balance || 0) + referralBonus;
+
+      const { error: updateReferrerError } = await supabase
         .from('users')
         .update({ 
           referral_count: newReferralCount,
@@ -353,20 +357,31 @@ export class DatabaseService {
         })
         .eq('telegram_id', referrerTelegramId);
 
-      if (updateError) {
-        console.error('❌ Error updating referrer stats:', updateError);
+      if (updateReferrerError) {
+        console.error('Error updating referrer:', updateReferrerError);
         return false;
       }
 
-      // Log referral activity
-      await this.logActivity(referrerTelegramId, 'referral_bonus', 0.01);
-      
-      console.log(`✅ Referral processed successfully: ${referrerTelegramId} got +1 referral and $0.01`);
-      console.log(`📊 New referral count: ${newReferralCount}, New balance: ${newBalance}`);
-      
+      // Log the referral
+      const { error: referralError } = await supabase
+        .from('referrals')
+        .insert({
+          referrer_telegram_id: referrerTelegramId,
+          referred_telegram_id: newUserTelegramId,
+          earnings: referralBonus
+        });
+
+      if (referralError) {
+        console.error('Error logging referral:', referralError);
+      }
+
+      // Log activity
+      await this.logActivity(referrerTelegramId, 'referral_bonus', referralBonus);
+
+      console.log(`Referral processed successfully: +${referralBonus} for ${referrerTelegramId}`);
       return true;
     } catch (error) {
-      console.error('❌ Error processing referral:', error);
+      console.error('Error processing referral:', error);
       return false;
     }
   }
@@ -630,6 +645,30 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error getting user activities:', error);
       return [];
+    }
+  }
+
+  // Get referral statistics
+  async getReferralStats(telegramId: string): Promise<{ count: number; earnings: number; referrals: any[] }> {
+    try {
+      const { data: referrals, error } = await supabase
+        .from('referrals')
+        .select('*')
+        .eq('referrer_telegram_id', telegramId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching referral stats:', error);
+        return { count: 0, earnings: 0, referrals: [] };
+      }
+
+      const count = referrals?.length || 0;
+      const earnings = referrals?.reduce((sum, ref) => sum + (ref.earnings || 0), 0) || 0;
+
+      return { count, earnings, referrals: referrals || [] };
+    } catch (error) {
+      console.error('Error getting referral stats:', error);
+      return { count: 0, earnings: 0, referrals: [] };
     }
   }
 }

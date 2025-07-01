@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
 
@@ -40,7 +39,10 @@ export class TaskService {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
       return (data || []).map(task => ({
         ...task,
         task_type: task.task_type as Task['task_type'],
@@ -155,22 +157,51 @@ export class TaskService {
     }
   }
 
-  // Admin: Create new task
+  // Admin: Create new task - Fixed version
   async createTask(task: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Promise<boolean> {
     try {
-      const { error } = await supabase
+      console.log('Creating task with data:', task);
+      
+      // Validate required fields
+      if (!task.title?.trim()) {
+        console.error('Task title is required');
+        return false;
+      }
+      
+      if (!task.task_url?.trim()) {
+        console.error('Task URL is required');
+        return false;
+      }
+
+      if (!task.task_type) {
+        console.error('Task type is required');
+        return false;
+      }
+
+      if (typeof task.reward_amount !== 'number' || task.reward_amount <= 0) {
+        console.error('Invalid reward amount');
+        return false;
+      }
+
+      const { data, error } = await supabase
         .from('tasks')
         .insert({
-          title: task.title,
-          description: task.description || null,
+          title: task.title.trim(),
+          description: task.description?.trim() || null,
           task_type: task.task_type,
-          task_url: task.task_url,
+          task_url: task.task_url.trim(),
           reward_amount: task.reward_amount,
           is_active: task.is_active
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
-      console.log('Task created successfully');
+      if (error) {
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
+
+      console.log('Task created successfully:', data);
       return true;
     } catch (error) {
       console.error('Error creating task:', error);

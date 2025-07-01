@@ -2,89 +2,60 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Users, DollarSign, Clock, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Users, 
+  Share2, 
+  Copy, 
+  DollarSign, 
+  Trophy,
+  UserPlus,
+  Gift,
+  CheckCircle,
+  RefreshCw
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { dbService, ReferralDetail } from '../services/database';
+import { dbService } from '../services/database';
 
 interface ReferralPageProps {
   userInfo: any;
-  referralCount: number;
-  onReferralUpdate?: () => void;
+  userBalance: number;
+  updateUserBalance: (newBalance: number) => void;
 }
 
-const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount, onReferralUpdate }) => {
-  const [referralStats, setReferralStats] = useState({
-    totalReferrals: 0,
-    totalEarnings: 0,
-    pendingEarnings: 0
-  });
-  const [referralDetails, setReferralDetails] = useState<ReferralDetail[]>([]);
-  const [referralLink, setReferralLink] = useState('');
+const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, updateUserBalance }) => {
+  const [referralStats, setReferralStats] = useState({ count: 0, earnings: 0, referrals: [] });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
+  const referralLink = `https://t.me/YourBotUsername?start=${userInfo?.id}`;
+
   useEffect(() => {
-    generateReferralLink();
-    loadReferralData();
-  }, [userInfo, referralCount]);
+    loadReferralStats();
+  }, [userInfo]);
 
-  const generateReferralLink = () => {
+  const loadReferralStats = async () => {
     if (userInfo?.id) {
-      const link = `https://t.me/Ads_Usdt_earn_bot?start=ref_${userInfo.id}`;
-      setReferralLink(link);
-    }
-  };
-
-  const loadReferralData = async () => {
-    try {
-      if (userInfo?.id) {
-        setLoading(true);
-        console.log('Loading referral data for user:', userInfo.id);
-        
-        // Get referral details
-        const details = await dbService.getUserReferrals(userInfo.id.toString());
-        console.log('Loaded referral details:', details);
-        setReferralDetails(details);
-        
-        // Calculate stats from referral details
-        const totalEarnings = details.reduce((sum, ref) => sum + Number(ref.earnings), 0);
-        
-        setReferralStats({
-          totalReferrals: referralCount,
-          totalEarnings: totalEarnings,
-          pendingEarnings: 0.00
-        });
-        
-        console.log('Referral stats updated:', {
-          totalReferrals: referralCount,
-          totalEarnings: totalEarnings,
-          detailsCount: details.length
-        });
+      setLoading(true);
+      try {
+        const stats = await dbService.getReferralStats(userInfo.id.toString());
+        setReferralStats(stats);
+      } catch (error) {
+        console.error('Error loading referral stats:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading referral data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load referral data",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
-  const refreshReferralData = async () => {
+  const refreshStats = async () => {
     setRefreshing(true);
-    await loadReferralData();
-    if (onReferralUpdate) {
-      onReferralUpdate();
-    }
+    await loadReferralStats();
     setRefreshing(false);
     toast({
       title: "Refreshed!",
-      description: "Referral data has been updated",
+      description: "Referral stats have been updated",
     });
   };
 
@@ -100,13 +71,24 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount, on
     if (navigator.share) {
       navigator.share({
         title: 'Join Ads by USDT Earn',
-        text: 'Start earning USDT by watching ads! Join me on this amazing platform.',
-        url: referralLink
+        text: 'Earn USDT by watching ads and completing tasks!',
+        url: referralLink,
       });
     } else {
       copyReferralLink();
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-4 space-y-6">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading referral data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-6">
@@ -115,7 +97,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount, on
         <div className="flex items-center justify-center space-x-2 mb-2">
           <h1 className="text-2xl font-bold text-white">Referral Program</h1>
           <Button
-            onClick={refreshReferralData}
+            onClick={refreshStats}
             disabled={refreshing}
             variant="ghost"
             size="sm"
@@ -125,46 +107,27 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount, on
           </Button>
         </div>
         <p className="text-gray-400">
-          Earn $0.01 from each friend who joins
+          Invite friends and earn $0.10 for each referral
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4">
-        <Card className="bg-gradient-to-r from-blue-600 to-purple-600 border-none">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-4">
-              <Users className="w-12 h-12 text-white" />
-              <div>
-                <p className="text-white text-sm opacity-90">Total Referrals</p>
-                <p className="text-3xl font-bold text-white">{referralStats.totalReferrals}</p>
-                <p className="text-white text-xs opacity-75">Active: {referralDetails.length}</p>
-              </div>
-            </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30">
+          <CardContent className="p-4 text-center">
+            <Users className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+            <p className="text-white font-bold text-lg">{referralStats.count}</p>
+            <p className="text-gray-400 text-sm">Total Referrals</p>
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4 text-center">
-              <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <p className="text-gray-400 text-sm">Total Earned</p>
-              <p className="text-xl font-bold text-white">
-                ${referralStats.totalEarnings.toFixed(3)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4 text-center">
-              <Clock className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-              <p className="text-gray-400 text-sm">Per Referral</p>
-              <p className="text-xl font-bold text-white">
-                $0.010
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="bg-gradient-to-r from-green-600/20 to-blue-600/20 border-green-500/30">
+          <CardContent className="p-4 text-center">
+            <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-white font-bold text-lg">${referralStats.earnings.toFixed(3)}</p>
+            <p className="text-gray-400 text-sm">Total Earned</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Referral Link */}
@@ -173,108 +136,105 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, referralCount, on
           <CardTitle className="text-white">Your Referral Link</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex space-x-2">
-            <Input
-              value={referralLink}
-              readOnly
-              className="bg-gray-700 border-gray-600 text-white"
-            />
+          <div className="flex items-center space-x-2 p-3 bg-gray-700 rounded-lg">
+            <code className="flex-1 text-white text-sm overflow-hidden">
+              {referralLink}
+            </code>
             <Button
               onClick={copyReferralLink}
+              size="sm"
               variant="outline"
-              className="border-gray-600 text-white hover:bg-gray-700"
+              className="border-gray-600 text-white hover:bg-gray-600"
             >
-              Copy
+              <Copy className="w-4 h-4" />
             </Button>
           </div>
           
           <Button
             onClick={shareReferralLink}
-            className="w-full bg-blue-600 hover:bg-blue-700"
+            className="w-full bg-green-600 hover:bg-green-700"
           >
+            <Share2 className="w-4 h-4 mr-2" />
             Share Link
           </Button>
         </CardContent>
       </Card>
 
-      {/* Recent Referrals */}
-      <Card className="bg-gray-800 border-gray-700">
+      {/* How it Works */}
+      <Card className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-purple-500/30">
         <CardHeader>
-          <CardTitle className="text-white">Your Referrals ({referralDetails.length})</CardTitle>
+          <CardTitle className="text-white flex items-center space-x-2">
+            <Gift className="w-5 h-5 text-yellow-400" />
+            <span>How Referrals Work</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-4">
-              <p className="text-gray-400">Loading referrals...</p>
-            </div>
-          ) : referralDetails.length > 0 ? (
-            <div className="space-y-3">
-              {referralDetails.map((ref, index) => (
-                <div key={`${ref.referred_user_id}-${index}`} className="flex justify-between items-center py-3 px-4 bg-gray-700/50 rounded-lg border border-gray-600">
-                  <div className="flex flex-col">
-                    <span className="text-white font-medium">
-                      {ref.referred_first_name || 'User'} 
-                      {ref.referred_username && ` (@${ref.referred_username})`}
-                    </span>
-                    <span className="text-gray-400 text-sm">
-                      {new Date(ref.created_at).toLocaleDateString()}
-                    </span>
-                    <span className="text-gray-500 text-xs">
-                      ID: {ref.referred_user_id}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-green-400 font-bold">+${Number(ref.earnings).toFixed(3)}</span>
-                    <p className="text-gray-400 text-xs">Earned</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-400 text-center py-4">
-              No referrals yet. Start sharing your link!
-            </p>
-          )}
+        <CardContent className="space-y-2">
+          <p className="text-gray-300 text-sm">
+            💰 Earn $0.10 USDT for each friend who joins
+          </p>
+          <p className="text-gray-300 text-sm">
+            👥 Your friends get instant access to earn USDT
+          </p>
+          <p className="text-gray-300 text-sm">
+            🎯 No limit on how many friends you can refer
+          </p>
+          <p className="text-gray-300 text-sm">
+            ⚡ Referral bonus is added instantly to your balance
+          </p>
         </CardContent>
       </Card>
 
-      {/* How It Works */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white">How Referrals Work</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-start space-x-3">
-            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold mt-1">
-              1
-            </div>
-            <div>
-              <p className="text-white font-medium">Share Your Link</p>
-              <p className="text-gray-400 text-sm">Send your referral link to friends</p>
-            </div>
-          </div>
-          
-          <div className="flex items-start space-x-3">
-            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold mt-1">
-              2
-            </div>
-            <div>
-              <p className="text-white font-medium">Friend Joins</p>
-              <p className="text-gray-400 text-sm">They sign up using your link</p>
-            </div>
-          </div>
-          
-          <div className="flex items-start space-x-3">
-            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold mt-1">
-              3
-            </div>
-            <div>
-              <p className="text-white font-medium">You Earn Instantly</p>
-              <p className="text-gray-400 text-sm">Get $0.01 immediately when they join</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Referral History */}
+      {referralStats.referrals.length > 0 && (
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white">Recent Referrals</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {referralStats.referrals.slice(0, 10).map((referral: any, index: number) => (
+              <div
+                key={referral.id || index}
+                className="flex items-center justify-between p-3 bg-green-600/10 rounded-lg border border-green-600/30"
+              >
+                <div className="flex items-center space-x-3">
+                  <UserPlus className="w-5 h-5 text-green-400" />
+                  <div>
+                    <p className="text-white font-medium">New Referral</p>
+                    <p className="text-gray-400 text-sm">
+                      {referral.created_at && new Date(referral.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-green-400 font-bold">
+                    +${(referral.earnings || 0.10).toFixed(3)}
+                  </span>
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {referralStats.count === 0 && (
+        <Card className="bg-gray-800 border-gray-700">
+          <CardContent className="p-8 text-center">
+            <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-white text-lg font-medium mb-2">No Referrals Yet</h3>
+            <p className="text-gray-400 mb-4">
+              Start inviting friends to earn referral bonuses
+            </p>
+            <Button
+              onClick={shareReferralLink}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Share2 className="w-4 h-4 mr-2" />
+              Share Your Link
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
