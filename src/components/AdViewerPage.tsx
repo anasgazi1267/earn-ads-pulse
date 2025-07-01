@@ -36,45 +36,8 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [canWatch, setCanWatch] = useState(true);
   const [dailyLimit] = useState(50);
+  const [adReward] = useState(0.005);
   const { toast } = useToast();
-
-  // Sample ads data - restored original reward amount
-  const sampleAds = [
-    {
-      id: 1,
-      title: "Crypto Exchange Platform",
-      description: "Trade cryptocurrencies safely and securely",
-      duration: 15,
-      reward: 0.005, // Restored to original $0.005
-      category: "Finance"
-    },
-    {
-      id: 2,
-      title: "Online Shopping Deal",
-      description: "Get 50% off on electronics and gadgets",
-      duration: 20,
-      reward: 0.005, // Restored to original $0.005
-      category: "Shopping"
-    },
-    {
-      id: 3,
-      title: "Mobile Gaming App",
-      description: "Download and play the latest mobile game",
-      duration: 25,
-      reward: 0.005, // Restored to original $0.005
-      category: "Gaming"
-    },
-    {
-      id: 4,
-      title: "Investment Platform",
-      description: "Start investing with just $10 minimum",
-      duration: 30,
-      reward: 0.005, // Restored to original $0.005
-      category: "Investment"
-    }
-  ];
-
-  const [currentAd, setCurrentAd] = useState(sampleAds[0]);
 
   useEffect(() => {
     loadUserData();
@@ -117,15 +80,22 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       return;
     }
 
-    // Get random ad
-    const randomAd = sampleAds[Math.floor(Math.random() * sampleAds.length)];
-    setCurrentAd(randomAd);
-    setCountdown(randomAd.duration);
+    // Initialize Monetag ad
+    try {
+      // Load Monetag ad script dynamically
+      if (typeof window !== 'undefined' && (window as any).show_9506527) {
+        (window as any).show_9506527();
+      }
+    } catch (error) {
+      console.error('Error loading Monetag ad:', error);
+    }
+
+    setCountdown(15); // Standard ad duration
     setIsWatching(true);
     
     toast({
       title: "Ad Started!",
-      description: `Watch for ${randomAd.duration} seconds to earn $${randomAd.reward.toFixed(3)}`,
+      description: `Watch for 15 seconds to earn $${adReward.toFixed(3)}`,
     });
   };
 
@@ -163,7 +133,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     
     try {
       // Update user balance
-      const newBalance = userBalance + currentAd.reward;
+      const newBalance = userBalance + adReward;
       const balanceSuccess = await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
       
       if (balanceSuccess) {
@@ -178,11 +148,11 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
           setCanWatch(newAdsCount < dailyLimit);
           
           // Log activity
-          await dbService.logActivity(userInfo.id.toString(), 'ad_watch', currentAd.reward);
+          await dbService.logActivity(userInfo.id.toString(), 'ad_watch', adReward);
           
           toast({
             title: "Ad Completed!",
-            description: `You earned $${currentAd.reward.toFixed(3)} USDT!`,
+            description: `You earned $${adReward.toFixed(3)} USDT!`,
           });
         } else {
           toast({
@@ -253,7 +223,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         <Card className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 border-green-500/30">
           <CardContent className="p-4 text-center">
             <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
-            <p className="text-white font-bold text-lg">${(adsWatchedToday * 0.005).toFixed(3)}</p>
+            <p className="text-white font-bold text-lg">${(adsWatchedToday * adReward).toFixed(3)}</p>
             <p className="text-gray-400 text-sm">Earned</p>
           </CardContent>
         </Card>
@@ -267,54 +237,71 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         </Card>
       </div>
 
-      {/* Current Ad Display */}
+      {/* Monetag Ad Display */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle className="text-white">Current Advertisement</CardTitle>
+            <CardTitle className="text-white">Advertisement</CardTitle>
             <Badge variant="secondary" className="bg-blue-600/20 text-blue-300">
-              {currentAd.category}
+              Monetag
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Ad Preview */}
-          <div className="relative bg-gray-900 rounded-lg p-6 text-center">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Play className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-white text-xl font-bold mb-2">{currentAd.title}</h3>
-            <p className="text-gray-400 mb-4">{currentAd.description}</p>
-            
-            {/* Countdown Timer */}
-            {isWatching && (
-              <div className="flex items-center justify-center space-x-2 mb-4">
-                <Clock className="w-5 h-5 text-yellow-400" />
-                <span className="text-yellow-400 font-bold text-lg">
-                  {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
-                </span>
+          {/* Monetag Ad Container */}
+          <div className="relative bg-gray-900 rounded-lg p-6 text-center min-h-[300px]">
+            {!isWatching && countdown === 0 ? (
+              <div>
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Play className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-white text-xl font-bold mb-2">Ready to Watch Ad</h3>
+                <p className="text-gray-400 mb-4">Click below to start watching and earn USDT</p>
+                <div className="flex items-center justify-center space-x-2">
+                  <DollarSign className="w-5 h-5 text-green-400" />
+                  <span className="text-green-400 font-bold">
+                    Reward: ${adReward.toFixed(3)} USDT
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Eye className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-white text-xl font-bold mb-2">Watching Advertisement</h3>
+                <p className="text-gray-400 mb-4">Keep this tab active to earn your reward</p>
+                
+                {/* Countdown Timer */}
+                <div className="flex items-center justify-center space-x-2 mb-4">
+                  <Clock className="w-5 h-5 text-yellow-400" />
+                  <span className="text-yellow-400 font-bold text-lg">
+                    {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
+                  <div 
+                    className="bg-gradient-to-r from-blue-600 to-green-600 h-2 rounded-full transition-all duration-1000"
+                    style={{ 
+                      width: `${((15 - countdown) / 15) * 100}%` 
+                    }}
+                  ></div>
+                </div>
+                
+                {/* Monetag Ad Placeholder */}
+                <div className="bg-gray-800 rounded-lg p-4 border-2 border-dashed border-gray-600">
+                  <p className="text-gray-400 text-sm">Advertisement Content</p>
+                  <div id="monetag-ad-container" className="min-h-[150px] flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                      <p className="text-gray-400 text-sm">Loading ad...</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
-            
-            {/* Progress Bar */}
-            {isWatching && (
-              <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
-                <div 
-                  className="bg-gradient-to-r from-blue-600 to-green-600 h-2 rounded-full transition-all duration-1000"
-                  style={{ 
-                    width: `${((currentAd.duration - countdown) / currentAd.duration) * 100}%` 
-                  }}
-                ></div>
-              </div>
-            )}
-            
-            {/* Reward Info */}
-            <div className="flex items-center justify-center space-x-2">
-              <DollarSign className="w-5 h-5 text-green-400" />
-              <span className="text-green-400 font-bold">
-                Reward: ${currentAd.reward.toFixed(3)} USDT
-              </span>
-            </div>
           </div>
 
           {/* Control Buttons */}
@@ -400,37 +387,27 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         </CardContent>
       </Card>
 
-      {/* Available Ads */}
-      <Card className="bg-gray-800 border-gray-700">
+      {/* Earning Info */}
+      <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30">
         <CardHeader>
-          <CardTitle className="text-white">Available Ads</CardTitle>
+          <CardTitle className="text-white flex items-center space-x-2">
+            <Gift className="w-5 h-5 text-yellow-400" />
+            <span>How It Works</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {sampleAds.map((ad) => (
-            <div 
-              key={ad.id}
-              className={`p-3 rounded-lg border ${
-                currentAd.id === ad.id 
-                  ? 'bg-blue-600/20 border-blue-600/50' 
-                  : 'bg-gray-700/50 border-gray-600'
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="text-white font-medium">{ad.title}</h4>
-                  <p className="text-gray-400 text-sm">{ad.description}</p>
-                  <div className="flex items-center space-x-4 mt-2">
-                    <Badge variant="secondary" className="bg-gray-600 text-gray-300">
-                      {ad.duration}s
-                    </Badge>
-                    <span className="text-green-400 font-bold text-sm">
-                      +${ad.reward.toFixed(3)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        <CardContent className="space-y-2">
+          <p className="text-gray-300 text-sm">
+            💰 Earn ${adReward.toFixed(3)} USDT for each ad you watch
+          </p>
+          <p className="text-gray-300 text-sm">
+            ⏱️ Each ad takes about 15 seconds to complete
+          </p>
+          <p className="text-gray-300 text-sm">
+            📊 You can watch up to {dailyLimit} ads per day
+          </p>
+          <p className="text-gray-300 text-sm">
+            🎯 Keep the tab active while watching to earn rewards
+          </p>
         </CardContent>
       </Card>
     </div>
