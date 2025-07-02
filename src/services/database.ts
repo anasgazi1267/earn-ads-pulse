@@ -73,6 +73,13 @@ export class DatabaseService {
       const existingUser = await this.getUserByTelegramId(telegramUser.id.toString());
       
       if (existingUser) {
+        // Check if existing user doesn't have a referrer but one is provided
+        if (referredBy && !existingUser.referred_by && referredBy !== telegramUser.id.toString()) {
+          console.log('Processing referral for existing user without referrer:', { userId: telegramUser.id, referrer: referredBy });
+          const referralSuccess = await this.processReferral(referredBy, telegramUser.id.toString());
+          console.log('Referral processing result for existing user:', referralSuccess);
+        }
+        
         // Update existing user with latest Telegram info
         const { data, error } = await supabase
           .from('users')
