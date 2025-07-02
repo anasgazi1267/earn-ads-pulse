@@ -29,7 +29,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
-  const referralLink = `https://t.me/YourBotUsername?start=${userInfo?.id}`;
+  const referralLink = `https://t.me/Ads_Usdt_earn_bot/FreeUsdt?startapp=ref_${userInfo?.id}`;
 
   useEffect(() => {
     loadReferralStats();
@@ -68,14 +68,30 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
   };
 
   const shareReferralLink = () => {
+    const shareText = `🚀 Join Ads by USDT Earn Bot!
+
+💰 Watch ads and earn real USDT
+🎯 Complete tasks for bonus rewards
+📱 Easy to use Telegram mini app
+🎁 Get $0.10 bonus when you join using my link!
+
+Join now: ${referralLink}
+
+Start earning today! 💎`;
+
     if (navigator.share) {
       navigator.share({
-        title: 'Join Ads by USDT Earn',
-        text: 'Earn USDT by watching ads and completing tasks!',
+        title: '🚀 Ads by USDT Earn - Start Earning Today!',
+        text: shareText,
         url: referralLink,
       });
     } else {
-      copyReferralLink();
+      // Copy the full message to clipboard
+      navigator.clipboard.writeText(shareText);
+      toast({
+        title: "Message Copied!",
+        description: "Complete referral message copied to clipboard",
+      });
     }
   };
 

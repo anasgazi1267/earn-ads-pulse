@@ -78,11 +78,18 @@ const Index = () => {
         telegramUser = tg.initDataUnsafe?.user;
         console.log('Telegram user data:', telegramUser);
         
-        // Extract referral from start param
+        // Extract referral from start param (mini app format)
         const startParam = tg.initDataUnsafe?.start_param;
         if (startParam && startParam.startsWith('ref_')) {
           referredBy = startParam.substring(4);
-          console.log('Referral detected from Telegram:', referredBy);
+          console.log('Mini app referral detected from Telegram:', referredBy);
+        }
+        
+        // Also check for web app format (backup)
+        const webAppStartParam = tg.initDataUnsafe?.start_param;
+        if (!referredBy && webAppStartParam) {
+          referredBy = webAppStartParam;
+          console.log('Web app referral detected:', referredBy);
         }
       }
       
