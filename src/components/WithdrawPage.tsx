@@ -32,7 +32,6 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
 
   const minWithdraw = parseFloat(settings.minWithdrawal);
   const requiredReferrals = parseInt(settings.requiredReferrals);
-  const requiredAdsWatch = 30; // Minimum 30 ads to enable withdrawal
 
   useEffect(() => {
     loadWithdrawalHistory();
@@ -51,20 +50,10 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
   };
 
   const handleWithdraw = async () => {
-    // Check withdrawal requirements
-    if (referralCount < requiredReferrals) {
+    if (!withdrawalEnabled) {
       toast({
         title: "Withdrawal Disabled",
         description: `You need ${requiredReferrals} successful referrals to enable withdrawals. Current: ${referralCount}`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if ((userInfo.ads_watched_today || 0) < requiredAdsWatch) {
-      toast({
-        title: "Withdrawal Disabled", 
-        description: `You need to watch ${requiredAdsWatch} ads today. Current: ${userInfo.ads_watched_today || 0}`,
         variant: "destructive"
       });
       return;
@@ -103,30 +92,6 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
     setIsSubmitting(true);
 
     try {
-      // First deduct balance from user account
-      const currentUser = await dbService.getUserByTelegramId(userInfo.id.toString());
-      if (!currentUser) {
-        toast({
-          title: "Error",
-          description: "User not found",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const newBalance = currentUser.balance - amount;
-      const balanceUpdated = await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
-      
-      if (!balanceUpdated) {
-        toast({
-          title: "Error",
-          description: "Failed to update balance",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create withdrawal request
       const success = await dbService.createWithdrawalRequest({
         telegram_id: userInfo.id.toString(),
         username: userInfo.username || `${userInfo.first_name} ${userInfo.last_name}`,
@@ -147,15 +112,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
 
         toast({
           title: "Withdrawal Requested",
-          description: `$${amount} deducted from balance. Request submitted for approval.`,
-        });
-      } else {
-        // If withdrawal request fails, restore the balance
-        await dbService.updateUserBalance(userInfo.id.toString(), currentUser.balance);
-        toast({
-          title: "Error",
-          description: "Failed to create withdrawal request. Balance restored.",
-          variant: "destructive"
+          description: "Your withdrawal request has been submitted for approval",
         });
       }
     } catch (error) {
@@ -200,18 +157,18 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
         </div>
       </div>
 
-      {/* Withdrawal Requirements Notice */}
-      {(referralCount < requiredReferrals || (userInfo.ads_watched_today || 0) < requiredAdsWatch) && (
+      {/* Referral Requirement Notice */}
+      {!withdrawalEnabled && (
         <Card className="bg-red-900/20 border-red-500/50">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
               <AlertCircle className="w-6 h-6 text-red-400" />
               <div>
-                <h3 className="text-red-400 font-semibold">Withdrawal Requirements</h3>
-                <div className="text-gray-300 text-sm space-y-1">
-                  <p>✅ Referrals: {referralCount}/{requiredReferrals} {referralCount >= requiredReferrals ? '(Complete)' : '(Incomplete)'}</p>
-                  <p>✅ Ads Today: {userInfo.ads_watched_today || 0}/{requiredAdsWatch} {(userInfo.ads_watched_today || 0) >= requiredAdsWatch ? '(Complete)' : '(Incomplete)'}</p>
-                </div>
+                <h3 className="text-red-400 font-semibold">Withdrawal Locked</h3>
+                <p className="text-gray-300 text-sm">
+                  Complete {requiredReferrals} referrals to unlock withdrawals. 
+                  Current: {referralCount}/{requiredReferrals}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -228,18 +185,18 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
             <Label htmlFor="amount" className="text-white">
               Amount (USDT) - Min: ${minWithdraw}
             </Label>
-              <Input
-                id="amount"
-                type="number"
-                placeholder="0.00"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white"
-                min={minWithdraw}
-                max={userBalance}
-                step="0.01"
-                disabled={referralCount < requiredReferrals || (userInfo.ads_watched_today || 0) < requiredAdsWatch}
-              />
+            <Input
+              id="amount"
+              type="number"
+              placeholder="0.00"
+              value={withdrawAmount}
+              onChange={(e) => setWithdrawAmount(e.target.value)}
+              className="bg-gray-700 border-gray-600 text-white"
+              min={minWithdraw}
+              max={userBalance}
+              step="0.01"
+              disabled={!withdrawalEnabled}
+            />
           </div>
 
           <div className="space-y-2">
@@ -250,7 +207,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
                 variant={withdrawalMethod === 'binance' ? 'default' : 'outline'}
                 onClick={() => setWithdrawalMethod('binance')}
                 className="flex-1"
-                disabled={referralCount < requiredReferrals || (userInfo.ads_watched_today || 0) < requiredAdsWatch}
+                disabled={!withdrawalEnabled}
               >
                 Binance Pay
               </Button>
@@ -259,7 +216,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
                 variant={withdrawalMethod === 'usdt' ? 'default' : 'outline'}
                 onClick={() => setWithdrawalMethod('usdt')}
                 className="flex-1"
-                disabled={referralCount < requiredReferrals || (userInfo.ads_watched_today || 0) < requiredAdsWatch}
+                disabled={!withdrawalEnabled}
               >
                 USDT TRC20
               </Button>
@@ -278,7 +235,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
                 value={binancePayId}
                 onChange={(e) => setBinancePayId(e.target.value)}
                 className="bg-gray-700 border-gray-600 text-white"
-                disabled={referralCount < requiredReferrals || (userInfo.ads_watched_today || 0) < requiredAdsWatch}
+                disabled={!withdrawalEnabled}
               />
             </div>
           ) : (
@@ -293,7 +250,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
                 value={usdtAddress}
                 onChange={(e) => setUsdtAddress(e.target.value)}
                 className="bg-gray-700 border-gray-600 text-white"
-                disabled={referralCount < requiredReferrals || (userInfo.ads_watched_today || 0) < requiredAdsWatch}
+                disabled={!withdrawalEnabled}
               />
             </div>
           )}
@@ -302,13 +259,11 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
             <p>• Withdrawals are processed within 24-48 hours</p>
             <p>• Admin approval is required for all withdrawals</p>
             <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
-            <p>• {requiredAdsWatch} ads watched today required for withdrawal</p>
-            <p>• Balance will be deducted immediately upon request</p>
           </div>
 
           <Button
             onClick={handleWithdraw}
-            disabled={isSubmitting || userBalance < minWithdraw || referralCount < requiredReferrals || (userInfo.ads_watched_today || 0) < requiredAdsWatch}
+            disabled={isSubmitting || userBalance < minWithdraw || !withdrawalEnabled}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600"
           >
             {isSubmitting ? "Submitting..." : "Request Withdrawal"}
@@ -359,8 +314,6 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
         <CardContent className="space-y-2 text-sm text-gray-400">
           <p>• Minimum withdrawal amount: ${minWithdraw} USDT</p>
           <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
-          <p>• {requiredAdsWatch} ads watched today required for withdrawal</p>
-          <p>• Balance deducted immediately upon request submission</p>
           <p>• All withdrawals require admin approval</p>
           <p>• Processing time: 24-48 hours after approval</p>
           <p>• Supported methods: Binance Pay & USDT TRC20</p>

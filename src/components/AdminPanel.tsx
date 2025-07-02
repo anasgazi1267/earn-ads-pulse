@@ -603,7 +603,6 @@ const AdminPanel: React.FC = () => {
                           <TableHead className="text-gray-300">Balance</TableHead>
                           <TableHead className="text-gray-300">Referrals</TableHead>
                           <TableHead className="text-gray-300">Ads Today</TableHead>
-                          <TableHead className="text-gray-300">Channels</TableHead>
                           <TableHead className="text-gray-300">Joined</TableHead>
                           <TableHead className="text-gray-300">Actions</TableHead>
                         </TableRow>
@@ -668,15 +667,6 @@ const AdminPanel: React.FC = () => {
                             </TableCell>
                             <TableCell>
                               <span className="text-purple-400">{user.ads_watched_today || 0}/30</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                user.channels_joined 
-                                  ? 'bg-green-600/20 text-green-300' 
-                                  : 'bg-red-600/20 text-red-300'
-                              }`}>
-                                {user.channels_joined ? 'Joined' : 'Not Joined'}
-                              </span>
                             </TableCell>
                             <TableCell>
                               <span className="text-gray-400 text-sm">
