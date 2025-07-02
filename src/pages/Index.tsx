@@ -80,9 +80,12 @@ const Index = () => {
         
         // Extract referral from start param (mini app format)
         const startParam = tg.initDataUnsafe?.start_param;
+        console.log('Full Telegram WebApp data:', tg.initDataUnsafe);
+        console.log('Start param detected:', startParam);
+        
         if (startParam && startParam.startsWith('ref_')) {
           referredBy = startParam.substring(4);
-          console.log('Mini app referral detected from Telegram:', referredBy);
+          console.log('✅ Mini app referral detected from Telegram:', referredBy);
         }
         
         // Also check for web app format (backup)
