@@ -234,8 +234,8 @@ const Index = () => {
           <Route path="/referral" element={
             <ReferralPage 
               userInfo={userInfo} 
-              referralCount={referralCount}
-              onReferralUpdate={refreshReferralCount}
+              userBalance={userBalance}
+              updateUserBalance={updateUserBalance}
             />
           } />
           <Route path="/withdraw" element={
