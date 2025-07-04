@@ -23,7 +23,6 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
 }) => {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [binancePayId, setBinancePayId] = useState('');
-  const [usdtAddress, setUsdtAddress] = useState('');
   const [withdrawalMethod, setWithdrawalMethod] = useState('binance');
   const [bkashNumber, setBkashNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,13 +79,11 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
       return;
     }
 
-    const address = withdrawalMethod === 'binance' ? binancePayId : 
-                   withdrawalMethod === 'usdt' ? usdtAddress : bkashNumber;
+    const address = withdrawalMethod === 'binance' ? binancePayId : bkashNumber;
     if (!address.trim()) {
       toast({
         title: "Missing Information",
-        description: `Please enter your ${withdrawalMethod === 'binance' ? 'Binance Pay ID' : 
-                     withdrawalMethod === 'usdt' ? 'USDT TRC20 Address' : 'Bkash Number'}`,
+        description: `Please enter your ${withdrawalMethod === 'binance' ? 'Binance Pay ID' : 'Bkash Number'}`,
         variant: "destructive"
       });
       return;
@@ -121,7 +118,6 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
         // Clear form
         setWithdrawAmount('');
         setBinancePayId('');
-        setUsdtAddress('');
         setBkashNumber('');
 
         // Reload history
@@ -218,7 +214,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
 
           <div className="space-y-2">
             <Label className="text-white">Withdrawal Method</Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
                 variant={withdrawalMethod === 'binance' ? 'default' : 'outline'}
@@ -228,16 +224,6 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
               >
                 {withdrawalMethod === 'binance' && <span className="text-green-400 text-lg mb-1">✓</span>}
                 <span className="text-sm">Binance Pay</span>
-              </Button>
-              <Button
-                type="button"
-                variant={withdrawalMethod === 'usdt' ? 'default' : 'outline'}
-                onClick={() => setWithdrawalMethod('usdt')}
-                className="flex-col h-auto p-3"
-                disabled={!withdrawalEnabled}
-              >
-                {withdrawalMethod === 'usdt' && <span className="text-green-400 text-lg mb-1">✓</span>}
-                <span className="text-sm">USDT TRC20</span>
               </Button>
               <Button
                 type="button"
@@ -269,22 +255,6 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
             </div>
           )}
           
-          {withdrawalMethod === 'usdt' && (
-            <div className="space-y-2">
-              <Label htmlFor="usdtAddress" className="text-white">
-                USDT TRC20 Address
-              </Label>
-              <Input
-                id="usdtAddress"
-                type="text"
-                placeholder="Enter your USDT TRC20 wallet address"
-                value={usdtAddress}
-                onChange={(e) => setUsdtAddress(e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white"
-                disabled={!withdrawalEnabled}
-              />
-            </div>
-          )}
 
           {withdrawalMethod === 'bkash' && (
             <div className="space-y-2">
@@ -372,7 +342,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
           <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
           <p>• All withdrawals require admin approval</p>
           <p>• Processing time: 24-48 hours after approval</p>
-          <p>• Supported methods: Binance Pay, USDT TRC20 & Bkash</p>
+          <p>• Supported methods: Binance Pay & Bkash</p>
           <p>• Bkash rate: $1 = 130 BDT</p>
           <p>• Double-check your wallet address before submitting</p>
         </CardContent>
