@@ -73,7 +73,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
 💰 Watch ads and earn real USDT
 🎯 Complete tasks for bonus rewards
 📱 Easy to use Telegram mini app
-🎁 Get $0.10 bonus when you join using my link!
+🎁 Get $0.01 bonus when you join using my link!
 
 Join now: ${referralLink}
 
@@ -123,7 +123,7 @@ Start earning today! 💎`;
           </Button>
         </div>
         <p className="text-gray-400">
-          Invite friends and earn $0.10 for each referral
+          Invite friends and earn $0.01 for each referral
         </p>
       </div>
 
@@ -186,7 +186,7 @@ Start earning today! 💎`;
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-gray-300 text-sm">
-            💰 Earn $0.10 USDT for each friend who joins
+            💰 Earn $0.01 USDT for each friend who joins
           </p>
           <p className="text-gray-300 text-sm">
             👥 Your friends get instant access to earn USDT

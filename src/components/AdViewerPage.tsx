@@ -36,7 +36,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [canWatch, setCanWatch] = useState(true);
   const [dailyLimit] = useState(50);
-  const [adReward] = useState(0.005);
+  const [adReward] = useState(0.001);
   const { toast } = useToast();
 
   useEffect(() => {

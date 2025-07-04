@@ -351,7 +351,7 @@ export class DatabaseService {
       }
 
       // Increment referrer's count and give bonus
-      const referralBonus = 0.10; // $0.10 per referral
+      const referralBonus = 0.01; // $0.01 per referral
       const newReferralCount = (referrer.referral_count || 0) + 1;
       const newBalance = (referrer.balance || 0) + referralBonus;
 

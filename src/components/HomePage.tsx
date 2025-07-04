@@ -49,7 +49,7 @@ const HomePage: React.FC<HomePageProps> = ({
     },
     {
       title: "Invite Friends",
-      description: "Get $0.10 per referral",
+      description: "Get $0.01 per referral",
       icon: <Users className="w-6 h-6" />,
       color: "bg-purple-600 hover:bg-purple-700",
       action: () => navigate('/referral')
@@ -150,7 +150,7 @@ const HomePage: React.FC<HomePageProps> = ({
               <Eye className="w-6 h-6 text-blue-400" />
               <div>
                 <p className="text-white font-medium">Watch Ads</p>
-                <p className="text-gray-400 text-sm">$0.005 per ad</p>
+                <p className="text-gray-400 text-sm">$0.001 per ad</p>
               </div>
             </div>
             <Badge variant="secondary" className="bg-blue-600/20 text-blue-300">
@@ -176,7 +176,7 @@ const HomePage: React.FC<HomePageProps> = ({
               <Users className="w-6 h-6 text-purple-400" />
               <div>
                 <p className="text-white font-medium">Referral Program</p>
-                <p className="text-gray-400 text-sm">$0.10 per friend</p>
+                <p className="text-gray-400 text-sm">$0.01 per friend</p>
               </div>
             </div>
             <Badge variant="secondary" className="bg-purple-600/20 text-purple-300">

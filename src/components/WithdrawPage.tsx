@@ -25,6 +25,7 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
   const [binancePayId, setBinancePayId] = useState('');
   const [usdtAddress, setUsdtAddress] = useState('');
   const [withdrawalMethod, setWithdrawalMethod] = useState('binance');
+  const [bkashNumber, setBkashNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
   const { toast } = useToast();
@@ -79,11 +80,13 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
       return;
     }
 
-    const address = withdrawalMethod === 'binance' ? binancePayId : usdtAddress;
+    const address = withdrawalMethod === 'binance' ? binancePayId : 
+                   withdrawalMethod === 'usdt' ? usdtAddress : bkashNumber;
     if (!address.trim()) {
       toast({
         title: "Missing Information",
-        description: `Please enter your ${withdrawalMethod === 'binance' ? 'Binance Pay ID' : 'USDT TRC20 Address'}`,
+        description: `Please enter your ${withdrawalMethod === 'binance' ? 'Binance Pay ID' : 
+                     withdrawalMethod === 'usdt' ? 'USDT TRC20 Address' : 'Bkash Number'}`,
         variant: "destructive"
       });
       return;
@@ -91,21 +94,35 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
 
     setIsSubmitting(true);
 
-    try {
-      const success = await dbService.createWithdrawalRequest({
-        telegram_id: userInfo.id.toString(),
-        username: userInfo.username || `${userInfo.first_name} ${userInfo.last_name}`,
-        amount: amount,
-        withdrawal_method: withdrawalMethod,
-        wallet_address: address,
-        status: 'pending'
-      });
+      try {
+        // Deduct balance first
+        const newBalance = userBalance - amount;
+        const balanceUpdated = await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
+        
+        if (!balanceUpdated) {
+          toast({
+            title: "Error",
+            description: "Failed to update balance",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const success = await dbService.createWithdrawalRequest({
+          telegram_id: userInfo.id.toString(),
+          username: userInfo.username || `${userInfo.first_name} ${userInfo.last_name}`,
+          amount: amount,
+          withdrawal_method: withdrawalMethod,
+          wallet_address: address,
+          status: 'pending'
+        });
 
       if (success) {
         // Clear form
         setWithdrawAmount('');
         setBinancePayId('');
         setUsdtAddress('');
+        setBkashNumber('');
 
         // Reload history
         loadWithdrawalHistory();
@@ -201,29 +218,41 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
 
           <div className="space-y-2">
             <Label className="text-white">Withdrawal Method</Label>
-            <div className="flex space-x-2">
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 type="button"
                 variant={withdrawalMethod === 'binance' ? 'default' : 'outline'}
                 onClick={() => setWithdrawalMethod('binance')}
-                className="flex-1"
+                className="flex-col h-auto p-3"
                 disabled={!withdrawalEnabled}
               >
-                Binance Pay
+                {withdrawalMethod === 'binance' && <span className="text-green-400 text-lg mb-1">✓</span>}
+                <span className="text-sm">Binance Pay</span>
               </Button>
               <Button
                 type="button"
                 variant={withdrawalMethod === 'usdt' ? 'default' : 'outline'}
                 onClick={() => setWithdrawalMethod('usdt')}
-                className="flex-1"
+                className="flex-col h-auto p-3"
                 disabled={!withdrawalEnabled}
               >
-                USDT TRC20
+                {withdrawalMethod === 'usdt' && <span className="text-green-400 text-lg mb-1">✓</span>}
+                <span className="text-sm">USDT TRC20</span>
+              </Button>
+              <Button
+                type="button"
+                variant={withdrawalMethod === 'bkash' ? 'default' : 'outline'}
+                onClick={() => setWithdrawalMethod('bkash')}
+                className="flex-col h-auto p-3"
+                disabled={!withdrawalEnabled}
+              >
+                {withdrawalMethod === 'bkash' && <span className="text-green-400 text-lg mb-1">✓</span>}
+                <span className="text-sm">Bkash</span>
               </Button>
             </div>
           </div>
 
-          {withdrawalMethod === 'binance' ? (
+          {withdrawalMethod === 'binance' && (
             <div className="space-y-2">
               <Label htmlFor="binanceId" className="text-white">
                 Binance Pay ID
@@ -238,7 +267,9 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
                 disabled={!withdrawalEnabled}
               />
             </div>
-          ) : (
+          )}
+          
+          {withdrawalMethod === 'usdt' && (
             <div className="space-y-2">
               <Label htmlFor="usdtAddress" className="text-white">
                 USDT TRC20 Address
@@ -252,6 +283,27 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
                 className="bg-gray-700 border-gray-600 text-white"
                 disabled={!withdrawalEnabled}
               />
+            </div>
+          )}
+
+          {withdrawalMethod === 'bkash' && (
+            <div className="space-y-2">
+              <Label htmlFor="bkashNumber" className="text-white">
+                Bkash Number
+              </Label>
+              <Input
+                id="bkashNumber"
+                type="text"
+                placeholder="Enter your Bkash mobile number"
+                value={bkashNumber}
+                onChange={(e) => setBkashNumber(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+                disabled={!withdrawalEnabled}
+              />
+              <div className="text-sm text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded-lg p-2">
+                <p>💱 Exchange Rate: $1 = 130 BDT</p>
+                <p>💰 You'll receive: {(parseFloat(withdrawAmount) * 130).toFixed(0)} BDT</p>
+              </div>
             </div>
           )}
 
@@ -284,7 +336,11 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
                   <div>
                     <p className="text-white font-medium">${withdrawal.amount.toFixed(2)}</p>
                     <p className="text-gray-400 text-sm">{withdrawal.date}</p>
-                    <p className="text-gray-400 text-xs">{withdrawal.method === 'binance' ? 'Binance Pay' : 'USDT TRC20'}</p>
+                   <p className="text-gray-400 text-xs">
+                     {withdrawal.method === 'binance' ? 'Binance Pay' : 
+                      withdrawal.method === 'usdt' ? 'USDT TRC20' : 
+                      withdrawal.method === 'bkash' ? `Bkash (${(withdrawal.amount * 130).toFixed(0)} BDT)` : withdrawal.method}
+                   </p>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center space-x-2">
@@ -316,7 +372,8 @@ const WithdrawPage: React.FC<WithdrawPageProps> = ({
           <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
           <p>• All withdrawals require admin approval</p>
           <p>• Processing time: 24-48 hours after approval</p>
-          <p>• Supported methods: Binance Pay & USDT TRC20</p>
+          <p>• Supported methods: Binance Pay, USDT TRC20 & Bkash</p>
+          <p>• Bkash rate: $1 = 130 BDT</p>
           <p>• Double-check your wallet address before submitting</p>
         </CardContent>
       </Card>
