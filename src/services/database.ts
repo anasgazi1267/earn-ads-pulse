@@ -294,11 +294,67 @@ export class DatabaseService {
           amount: amount,
           activity_date: new Date().toDateString()
         });
-
+      
       return !error;
     } catch (error) {
       console.error('Error logging activity:', error);
       return false;
+    }
+  }
+
+  // Get detailed user statistics
+  async getUserStats(telegramId: string): Promise<{
+    adsWatched: number;
+    tasksCompleted: number;
+    referralCount: number;
+    totalWithdrawals: number;
+    totalEarnings: number;
+  }> {
+    try {
+      // Get ads watched
+      const { data: adsData } = await supabase
+        .from('user_activities')
+        .select('amount')
+        .eq('telegram_id', telegramId)
+        .eq('activity_type', 'ad_watched');
+
+      // Get tasks completed
+      const { data: tasksData } = await supabase
+        .from('user_tasks')
+        .select('reward_earned')
+        .eq('user_id', telegramId);
+
+      // Get referrals
+      const { data: referralsData } = await supabase
+        .from('referrals')
+        .select('earnings')
+        .eq('referrer_telegram_id', telegramId);
+
+      // Get withdrawals
+      const { data: withdrawalsData } = await supabase
+        .from('withdrawal_requests')
+        .select('amount')
+        .eq('telegram_id', telegramId)
+        .eq('status', 'completed');
+
+      return {
+        adsWatched: adsData?.length || 0,
+        tasksCompleted: tasksData?.length || 0,
+        referralCount: referralsData?.length || 0,
+        totalWithdrawals: withdrawalsData?.length || 0,
+        totalEarnings: (adsData?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0) +
+                      (tasksData?.reduce((sum, item) => sum + (item.reward_earned || 0), 0) || 0) +
+                      (referralsData?.reduce((sum, item) => sum + (item.earnings || 0), 0) || 0)
+      };
+    } catch (error) {
+      console.error('Error getting user stats:', error);
+      return {
+        adsWatched: 0,
+        tasksCompleted: 0,
+        referralCount: 0,
+        totalWithdrawals: 0,
+        totalEarnings: 0
+      };
     }
   }
 

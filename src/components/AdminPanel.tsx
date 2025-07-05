@@ -23,6 +23,14 @@ const AdminPanel: React.FC = () => {
   const [showAdminId, setShowAdminId] = useState(false);
   const [editingBalance, setEditingBalance] = useState<string | null>(null);
   const [editBalance, setEditBalance] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userStats, setUserStats] = useState<{
+    adsWatched: number;
+    tasksCompleted: number;
+    referralCount: number;
+    totalWithdrawals: number;
+    totalEarnings: number;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   
   // Task form states
@@ -31,8 +39,11 @@ const AdminPanel: React.FC = () => {
     description: '',
     task_type: 'telegram_channel' as const,
     task_url: '',
-    reward_amount: 0.01,
-    is_active: true
+    reward_amount: 0.001,
+    is_active: true,
+    max_completions: 100,
+    total_budget: 0.1,
+    current_completions: 0
   });
 
   const { toast } = useToast();
@@ -246,8 +257,11 @@ const AdminPanel: React.FC = () => {
           description: '',
           task_type: 'telegram_channel',
           task_url: '',
-          reward_amount: 0.01,
-          is_active: true
+          reward_amount: 0.001,
+          is_active: true,
+          max_completions: 100,
+          total_budget: 0.1,
+          current_completions: 0
         });
         
         // Reload tasks
@@ -299,6 +313,27 @@ const AdminPanel: React.FC = () => {
         variant: "destructive"
       });
     }
+  };
+
+  // User profile management
+  const handleViewUserProfile = async (user: User) => {
+    try {
+      setSelectedUser(user);
+      const stats = await dbService.getUserStats(user.telegram_id);
+      setUserStats(stats);
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load user profile",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const closeUserProfile = () => {
+    setSelectedUser(null);
+    setUserStats(null);
   };
 
   if (!isAuthorized) {
@@ -463,7 +498,35 @@ const AdminPanel: React.FC = () => {
                       value={newTask.reward_amount}
                       onChange={(e) => setNewTask({ ...newTask, reward_amount: parseFloat(e.target.value) || 0 })}
                       className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="0.001"
                     />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-white">Max Completions</Label>
+                      <Input
+                        type="number"
+                        value={newTask.max_completions}
+                        onChange={(e) => setNewTask({ ...newTask, max_completions: parseInt(e.target.value) || 0 })}
+                        className="bg-gray-700 border-gray-600 text-white"
+                        placeholder="100"
+                      />
+                      <p className="text-gray-400 text-xs mt-1">How many people can complete this task</p>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-white">Total Budget (USDT)</Label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        value={newTask.total_budget}
+                        onChange={(e) => setNewTask({ ...newTask, total_budget: parseFloat(e.target.value) || 0 })}
+                        className="bg-gray-700 border-gray-600 text-white"
+                        placeholder="0.1"
+                      />
+                      <p className="text-gray-400 text-xs mt-1">Total amount allocated for this task</p>
+                    </div>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -524,6 +587,8 @@ const AdminPanel: React.FC = () => {
                           <TableHead className="text-gray-300">Task</TableHead>
                           <TableHead className="text-gray-300">Type</TableHead>
                           <TableHead className="text-gray-300">Reward</TableHead>
+                          <TableHead className="text-gray-300">Progress</TableHead>
+                          <TableHead className="text-gray-300">Budget</TableHead>
                           <TableHead className="text-gray-300">Status</TableHead>
                           <TableHead className="text-gray-300">Actions</TableHead>
                         </TableRow>
@@ -548,6 +613,28 @@ const AdminPanel: React.FC = () => {
                             <TableCell>
                               <span className="text-green-400 font-bold">
                                 ${task.reward_amount.toFixed(3)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <span className="text-blue-400">
+                                  {task.current_completions}/{task.max_completions || '∞'}
+                                </span>
+                                <div className="w-full bg-gray-600 rounded-full h-2 mt-1">
+                                  <div 
+                                    className="bg-blue-500 h-2 rounded-full" 
+                                    style={{ 
+                                      width: task.max_completions 
+                                        ? `${Math.min((task.current_completions / task.max_completions) * 100, 100)}%` 
+                                        : '0%' 
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-purple-400 font-medium">
+                                ${(task.total_budget || 0).toFixed(3)}
                               </span>
                             </TableCell>
                             <TableCell>
@@ -674,13 +761,14 @@ const AdminPanel: React.FC = () => {
                               </span>
                             </TableCell>
                             <TableCell>
-                              <div className="flex space-x-1">
+                               <div className="flex space-x-1">
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-8 px-2 text-xs border-gray-600 text-gray-300"
+                                  onClick={() => handleViewUserProfile(user)}
+                                  className="h-8 px-2 text-xs border-gray-600 text-gray-300 hover:bg-blue-600/20"
                                 >
-                                  View
+                                  View Profile
                                 </Button>
                               </div>
                             </TableCell>
@@ -903,6 +991,168 @@ const AdminPanel: React.FC = () => {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* User Profile Modal */}
+        {selectedUser && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-4xl bg-gray-800/90 backdrop-blur-sm border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-white text-2xl">
+                    {selectedUser.first_name} {selectedUser.last_name}
+                  </CardTitle>
+                  <p className="text-gray-400">@{selectedUser.username} • ID: {selectedUser.telegram_id}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={closeUserProfile}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {userStats ? (
+                  <div className="space-y-6">
+                    {/* Overview Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-blue-600/20 p-4 rounded-lg text-center">
+                        <h3 className="text-blue-300 text-sm">Ads Watched</h3>
+                        <p className="text-2xl font-bold text-white">{userStats.adsWatched}</p>
+                      </div>
+                      <div className="bg-green-600/20 p-4 rounded-lg text-center">
+                        <h3 className="text-green-300 text-sm">Tasks Completed</h3>
+                        <p className="text-2xl font-bold text-white">{userStats.tasksCompleted}</p>
+                      </div>
+                      <div className="bg-purple-600/20 p-4 rounded-lg text-center">
+                        <h3 className="text-purple-300 text-sm">Referrals</h3>
+                        <p className="text-2xl font-bold text-white">{userStats.referralCount}</p>
+                      </div>
+                      <div className="bg-orange-600/20 p-4 rounded-lg text-center">
+                        <h3 className="text-orange-300 text-sm">Withdrawals</h3>
+                        <p className="text-2xl font-bold text-white">{userStats.totalWithdrawals}</p>
+                      </div>
+                    </div>
+
+                    {/* Detailed Information */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <Card className="bg-gray-700/50 border-gray-600">
+                        <CardHeader>
+                          <CardTitle className="text-white text-lg">Account Info</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Current Balance:</span>
+                            <span className="text-green-400 font-bold">${(selectedUser.balance || 0).toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Total Earnings:</span>
+                            <span className="text-blue-400 font-bold">${userStats.totalEarnings.toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Joined:</span>
+                            <span className="text-gray-300">
+                              {selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString() : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Channels Joined:</span>
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              selectedUser.channels_joined 
+                                ? 'bg-green-600/20 text-green-300' 
+                                : 'bg-red-600/20 text-red-300'
+                            }`}>
+                              {selectedUser.channels_joined ? 'Yes' : 'No'}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gray-700/50 border-gray-600">
+                        <CardHeader>
+                          <CardTitle className="text-white text-lg">Activity Stats</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Ads Today:</span>
+                            <span className="text-purple-400">{selectedUser.ads_watched_today || 0}/30</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Spins Today:</span>
+                            <span className="text-yellow-400">{selectedUser.spins_used_today || 0}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Last Activity:</span>
+                            <span className="text-gray-300">
+                              {selectedUser.last_activity_date ? new Date(selectedUser.last_activity_date).toLocaleDateString() : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Referred By:</span>
+                            <span className="text-blue-400">{selectedUser.referred_by || 'Direct'}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gray-700/50 border-gray-600">
+                        <CardHeader>
+                          <CardTitle className="text-white text-lg">Performance</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="text-center">
+                            <p className="text-gray-400 text-sm">Completion Rate</p>
+                            <div className="w-full bg-gray-600 rounded-full h-3 mt-2">
+                              <div 
+                                className="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full" 
+                                style={{ 
+                                  width: userStats.tasksCompleted > 0 ? '85%' : '0%' 
+                                }}
+                              />
+                            </div>
+                            <p className="text-white font-bold mt-1">85%</p>
+                          </div>
+                          <div className="text-center mt-4">
+                            <p className="text-gray-400 text-sm">User Rating</p>
+                            <div className="flex justify-center mt-1">
+                              {[1,2,3,4,5].map((star) => (
+                                <span key={star} className="text-yellow-400">⭐</span>
+                              ))}
+                            </div>
+                            <p className="text-white font-bold">Excellent</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-center space-x-4 pt-4">
+                      <Button
+                        onClick={() => handleBalanceEdit(selectedUser.telegram_id, selectedUser.balance || 0)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Edit Balance
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={closeUserProfile}
+                        className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                      >
+                        Close Profile
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p className="text-gray-400 mt-4">Loading user statistics...</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <div className="mt-8 text-center">
           <p className="text-gray-400 text-sm">

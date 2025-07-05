@@ -60,35 +60,44 @@ export type Database = {
       tasks: {
         Row: {
           created_at: string
+          current_completions: number | null
           description: string | null
           id: string
           is_active: boolean
+          max_completions: number | null
           reward_amount: number
           task_type: string
           task_url: string
           title: string
+          total_budget: number | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          current_completions?: number | null
           description?: string | null
           id?: string
           is_active?: boolean
+          max_completions?: number | null
           reward_amount?: number
           task_type: string
           task_url: string
           title: string
+          total_budget?: number | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          current_completions?: number | null
           description?: string | null
           id?: string
           is_active?: boolean
+          max_completions?: number | null
           reward_amount?: number
           task_type?: string
           task_url?: string
           title?: string
+          total_budget?: number | null
           updated_at?: string
         }
         Relationships: []

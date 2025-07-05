@@ -12,6 +12,9 @@ export interface Task {
   task_url: string;
   reward_amount: number;
   is_active: boolean;
+  max_completions?: number;
+  total_budget?: number;
+  current_completions: number;
   created_at: string;
   updated_at: string;
 }
@@ -191,7 +194,10 @@ export class TaskService {
           task_type: task.task_type,
           task_url: task.task_url.trim(),
           reward_amount: task.reward_amount,
-          is_active: task.is_active
+          is_active: task.is_active,
+          max_completions: task.max_completions || null,
+          total_budget: task.total_budget || null,
+          current_completions: task.current_completions || 0
         })
         .select()
         .single();
