@@ -80,13 +80,13 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
   };
 
   const startTaskTimer = (taskId: string) => {
-    // Set random timer between 10-30 seconds
-    const waitTime = Math.floor(Math.random() * 21) + 10;
+    // Set timer between 30-60 seconds for better validation
+    const waitTime = Math.floor(Math.random() * 31) + 30;
     setTaskTimers(prev => ({ ...prev, [taskId]: waitTime }));
     
     toast({
       title: "Task Started!",
-      description: `Please wait ${waitTime} seconds before claiming reward`,
+      description: `Please complete the task first, then wait ${waitTime} seconds before claiming reward`,
     });
   };
 
@@ -97,7 +97,29 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
     if (taskTimers[taskId] > 0) {
       toast({
         title: "Please Wait!",
-        description: `Wait ${taskTimers[taskId]} more seconds to complete this task`,
+        description: `Complete the task first, then wait ${taskTimers[taskId]} more seconds`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Additional validation - ensure user has visited the task
+    const taskStartTime = localStorage.getItem(`task_start_${taskId}`);
+    if (!taskStartTime) {
+      toast({
+        title: "Task Not Started!",
+        description: "Please visit the task link first before claiming reward",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if enough time has passed since task start
+    const timeElapsed = Date.now() - parseInt(taskStartTime);
+    if (timeElapsed < 30000) { // Minimum 30 seconds
+      toast({
+        title: "Complete the Task!",
+        description: "Please spend more time completing the task",
         variant: "destructive"
       });
       return;
@@ -112,8 +134,8 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
         const reward = task?.reward_amount || 0;
         
         toast({
-          title: "Task Completed!",
-          description: `You earned $${reward.toFixed(3)} USDT!`,
+          title: "🎉 Task Completed!",
+          description: `Congratulations! You earned $${reward.toFixed(3)} USDT!`,
         });
 
         // Update local state
@@ -124,16 +146,17 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
             : t
         ));
 
-        // Clear timer
+        // Clear timer and localStorage
         setTaskTimers(prev => {
           const updated = { ...prev };
           delete updated[taskId];
           return updated;
         });
+        localStorage.removeItem(`task_start_${taskId}`);
       } else {
         toast({
           title: "Error",
-          description: "Failed to complete task",
+          description: "Task already completed or invalid",
           variant: "destructive"
         });
       }
@@ -141,7 +164,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
       console.error('Error completing task:', error);
       toast({
         title: "Error",
-        description: "Failed to complete task",
+        description: "Failed to complete task. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -327,68 +350,97 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
             {availableTasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg border border-gray-600"
+                className="group relative overflow-hidden bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-sm rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5"
               >
-                <div className="flex items-center space-x-4">
-                  {getTaskIcon(task.task_type)}
-                  <div className="flex-1">
-                    <h3 className="text-white font-medium">{task.title}</h3>
-                    {task.description && (
-                      <p className="text-gray-400 text-sm mt-1">{task.description}</p>
-                    )}
-                    <div className="flex items-center space-x-2 mt-2">
-                      <Badge variant="secondary" className="bg-blue-600/20 text-blue-300">
-                        {getTaskTypeText(task.task_type)}
-                      </Badge>
-                      <span className="text-green-400 font-bold">
-                        +${task.reward_amount.toFixed(3)} USDT
-                      </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="relative p-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20">
+                      {getTaskIcon(task.task_type)}
                     </div>
-                    {taskTimers[task.id] > 0 && (
-                      <div className="flex items-center space-x-2 mt-2">
-                        <Timer className="w-4 h-4 text-orange-400" />
-                        <span className="text-orange-400 text-sm">
-                          Wait {taskTimers[task.id]} seconds to claim
-                        </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <h3 className="text-foreground font-semibold text-lg truncate">{task.title}</h3>
+                        <Badge variant="secondary" className="bg-primary/15 text-primary border border-primary/20 shrink-0">
+                          {getTaskTypeText(task.task_type)}
+                        </Badge>
                       </div>
-                    )}
+                      
+                      {task.description && (
+                        <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{task.description}</p>
+                      )}
+                      
+                      <div className="flex items-center space-x-4 mb-3">
+                        <div className="flex items-center space-x-2">
+                          <DollarSign className="w-4 h-4 text-green-400" />
+                          <span className="text-green-400 font-bold text-lg">
+                            +${task.reward_amount.toFixed(3)}
+                          </span>
+                          <span className="text-muted-foreground text-sm">USDT</span>
+                        </div>
+                        
+                        {task.max_completions && (
+                          <div className="flex items-center space-x-2">
+                            <Users className="w-4 h-4 text-blue-400" />
+                            <span className="text-blue-400 text-sm">
+                              {task.current_completions}/{task.max_completions} completed
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {taskTimers[task.id] > 0 && (
+                        <div className="flex items-center space-x-2 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                          <Timer className="w-4 h-4 text-orange-400 animate-pulse" />
+                          <span className="text-orange-400 text-sm font-medium">
+                            Please wait {taskTimers[task.id]} seconds to claim reward
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    onClick={() => {
-                      window.open(task.task_url, '_blank');
-                      if (!taskTimers[task.id]) {
-                        startTaskTimer(task.id);
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-600 text-white hover:bg-gray-700"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    Visit
-                  </Button>
-                  <Button
-                    onClick={() => handleCompleteTask(task.id)}
-                    disabled={completingTask === task.id || taskTimers[task.id] > 0}
-                    className={`${taskTimers[task.id] > 0 ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
-                    size="sm"
-                  >
-                    {completingTask === task.id ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    ) : taskTimers[task.id] > 0 ? (
-                      <>
-                        <Timer className="w-4 h-4 mr-1" />
-                        {taskTimers[task.id]}s
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Complete
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-3 pt-4 border-t border-border/50">
+                    <Button
+                      onClick={() => {
+                        // Store task start time
+                        localStorage.setItem(`task_start_${task.id}`, Date.now().toString());
+                        window.open(task.task_url, '_blank');
+                        if (!taskTimers[task.id]) {
+                          startTaskTimer(task.id);
+                        }
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="border-primary/50 text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Start Task
+                    </Button>
+                    <Button
+                      onClick={() => handleCompleteTask(task.id)}
+                      disabled={completingTask === task.id || taskTimers[task.id] > 0}
+                      className={`flex-1 sm:flex-none font-semibold transition-all duration-300 ${
+                        taskTimers[task.id] > 0 
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600' 
+                          : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg hover:shadow-green-500/25'
+                      }`}
+                      size="sm"
+                    >
+                      {completingTask === task.id ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      ) : taskTimers[task.id] > 0 ? (
+                        <>
+                          <Timer className="w-4 h-4 mr-2" />
+                          Claim in {taskTimers[task.id]}s
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Claim Reward
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

@@ -504,15 +504,30 @@ const AdminPanel: React.FC = () => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-white">Max Completions</Label>
+                      <Label className="text-white">Max Completions (Auto-calculated)</Label>
                       <Input
                         type="number"
                         value={newTask.max_completions}
-                        onChange={(e) => setNewTask({ ...newTask, max_completions: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => {
+                          const completions = parseInt(e.target.value) || 0;
+                          const reward = newTask.reward_amount;
+                          const totalBudget = completions * reward;
+                          
+                          setNewTask({ 
+                            ...newTask, 
+                            max_completions: completions,
+                            total_budget: totalBudget
+                          });
+                        }}
                         className="bg-gray-700 border-gray-600 text-white"
                         placeholder="100"
                       />
-                      <p className="text-gray-400 text-xs mt-1">How many people can complete this task</p>
+                      <p className="text-green-400 text-xs mt-1">
+                        {newTask.total_budget > 0 && newTask.reward_amount > 0 
+                          ? `Auto-calculated from budget: ${Math.floor(newTask.total_budget / newTask.reward_amount)} users`
+                          : "Will be calculated from total budget"
+                        }
+                      </p>
                     </div>
                     
                     <div>
@@ -521,7 +536,17 @@ const AdminPanel: React.FC = () => {
                         type="number"
                         step="0.001"
                         value={newTask.total_budget}
-                        onChange={(e) => setNewTask({ ...newTask, total_budget: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => {
+                          const budget = parseFloat(e.target.value) || 0;
+                          const reward = newTask.reward_amount;
+                          const maxCompletions = reward > 0 ? Math.floor(budget / reward) : 0;
+                          
+                          setNewTask({ 
+                            ...newTask, 
+                            total_budget: budget,
+                            max_completions: maxCompletions
+                          });
+                        }}
                         className="bg-gray-700 border-gray-600 text-white"
                         placeholder="0.1"
                       />
