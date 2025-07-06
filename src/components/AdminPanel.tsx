@@ -32,6 +32,7 @@ const AdminPanel: React.FC = () => {
     totalEarnings: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
   
   // Task form states
   const [newTask, setNewTask] = useState({
@@ -334,6 +335,40 @@ const AdminPanel: React.FC = () => {
   const closeUserProfile = () => {
     setSelectedUser(null);
     setUserStats(null);
+  };
+
+  // Delete user function
+  const handleDeleteUser = async (telegramId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to delete user ${userName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingUser(telegramId);
+    try {
+      const success = await dbService.deleteUser(telegramId);
+      if (success) {
+        toast({
+          title: "User Deleted",
+          description: `User ${userName} has been permanently deleted`,
+        });
+        await loadAdminData(); // Refresh the data
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete user",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive"
+      });
+    } finally {
+      setDeletingUser(null);
+    }
   };
 
   if (!isAuthorized) {
@@ -794,6 +829,19 @@ const AdminPanel: React.FC = () => {
                                   className="h-8 px-2 text-xs border-gray-600 text-gray-300 hover:bg-blue-600/20"
                                 >
                                   View Profile
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteUser(user.telegram_id, `${user.first_name} ${user.last_name}`)}
+                                  disabled={deletingUser === user.telegram_id}
+                                  className="h-8 px-2 text-xs"
+                                >
+                                  {deletingUser === user.telegram_id ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b border-white"></div>
+                                  ) : (
+                                    'Delete'
+                                  )}
                                 </Button>
                               </div>
                             </TableCell>

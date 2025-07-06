@@ -77,13 +77,26 @@ export class TaskService {
 
       const completedTaskIds = new Set(completedTasks?.map(ct => ct.task_id) || []);
 
-      return (tasks || []).map(task => ({
-        ...task,
-        task_type: task.task_type as Task['task_type'],
-        description: task.description || undefined,
-        completed: completedTaskIds.has(task.id),
-        completion_date: completedTasks?.find(ct => ct.task_id === task.id)?.completed_at
-      }));
+      // Filter out tasks that have reached completion limit or user already completed
+      return (tasks || [])
+        .filter(task => {
+          // Don't show if user already completed this task
+          if (completedTaskIds.has(task.id)) return true; // Still include for completed section
+          
+          // Don't show if task has reached max completions
+          if (task.max_completions && task.current_completions >= task.max_completions) {
+            return false;
+          }
+          
+          return true;
+        })
+        .map(task => ({
+          ...task,
+          task_type: task.task_type as Task['task_type'],
+          description: task.description || undefined,
+          completed: completedTaskIds.has(task.id),
+          completion_date: completedTasks?.find(ct => ct.task_id === task.id)?.completed_at
+        }));
     } catch (error) {
       console.error('Error fetching user tasks:', error);
       return [];
@@ -106,10 +119,10 @@ export class TaskService {
         return false;
       }
 
-      // Get task details
+      // Get task details including current completions
       const { data: task, error: taskError } = await supabase
         .from('tasks')
-        .select('reward_amount')
+        .select('reward_amount, current_completions')
         .eq('id', taskId)
         .eq('is_active', true)
         .single();
@@ -119,7 +132,7 @@ export class TaskService {
         return false;
       }
 
-      // Mark task as completed
+      // Mark task as completed and increment task completion count
       const { error: insertError } = await supabase
         .from('user_tasks')
         .insert({
@@ -129,6 +142,19 @@ export class TaskService {
         });
 
       if (insertError) throw insertError;
+
+      // Increment task completion count
+      const { error: incrementError } = await supabase
+        .from('tasks')
+        .update({ 
+          current_completions: (task.current_completions || 0) + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
+
+      if (incrementError) {
+        console.error('Error incrementing task completion count:', incrementError);
+      }
 
       // Update user balance
       const { data: user, error: userError } = await supabase

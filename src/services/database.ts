@@ -73,12 +73,22 @@ export class DatabaseService {
       const existingUser = await this.getUserByTelegramId(telegramUser.id.toString());
       
       if (existingUser) {
-        // Check if existing user doesn't have a referrer but one is provided
-        if (referredBy && !existingUser.referred_by && referredBy !== telegramUser.id.toString()) {
-          console.log('Processing referral for existing user without referrer:', { userId: telegramUser.id, referrer: referredBy });
-          const referralSuccess = await this.processReferral(referredBy, telegramUser.id.toString());
-          console.log('Referral processing result for existing user:', referralSuccess);
-        }
+      // Check if existing user doesn't have a referrer but one is provided
+      if (referredBy && !existingUser.referred_by && referredBy !== telegramUser.id.toString()) {
+        console.log('Processing referral for returning user without referrer:', { userId: telegramUser.id, referrer: referredBy });
+        
+        // Update user first with referrer info
+        await supabase
+          .from('users')
+          .update({
+            referred_by: referredBy,
+            updated_at: new Date().toISOString()
+          })
+          .eq('telegram_id', telegramUser.id.toString());
+        
+        const referralSuccess = await this.processReferral(referredBy, telegramUser.id.toString());
+        console.log('Referral processing result for returning user:', referralSuccess);
+      }
         
         // Update existing user with latest Telegram info
         const { data, error } = await supabase
@@ -165,6 +175,48 @@ export class DatabaseService {
       return true;
     } catch (error) {
       console.error('Error updating balance:', error);
+      return false;
+    }
+  }
+
+  // Delete user for testing purposes
+  async deleteUser(telegramId: string): Promise<boolean> {
+    try {
+      // Delete user's activities first
+      await supabase
+        .from('user_activities')
+        .delete()
+        .eq('telegram_id', telegramId);
+
+      // Delete user's completed tasks
+      await supabase
+        .from('user_tasks')
+        .delete()
+        .eq('user_id', telegramId);
+
+      // Delete user's referrals (both as referrer and referred)
+      await supabase
+        .from('referrals')
+        .delete()
+        .or(`referrer_telegram_id.eq.${telegramId},referred_telegram_id.eq.${telegramId}`);
+
+      // Delete withdrawal requests
+      await supabase
+        .from('withdrawal_requests')
+        .delete()
+        .eq('telegram_id', telegramId);
+
+      // Finally delete the user
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('telegram_id', telegramId);
+
+      if (error) throw error;
+      console.log(`User ${telegramId} deleted successfully`);
+      return true;
+    } catch (error) {
+      console.error('Error deleting user:', error);
       return false;
     }
   }
