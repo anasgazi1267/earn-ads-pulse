@@ -1,58 +1,48 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, CheckCircle, ExternalLink, Crown, Star } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Users, CheckCircle, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { channelService, Channel } from '@/services/channelService';
 
 interface JoinChannelsPageProps {
-  channels: string[];
   onChannelsJoined: () => void;
 }
 
-const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannelsJoined }) => {
+const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ onChannelsJoined }) => {
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [joinedChannels, setJoinedChannels] = useState<Set<string>>(new Set());
   const [verifying, setVerifying] = useState(false);
   const [hasVerified, setHasVerified] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Channel information with images and descriptions
-  const channelInfo = [
-    {
-      url: 'https://t.me/AnasEarnHunter',
-      name: 'Anas Earn Hunter',
-      description: 'Premium Earning Opportunities',
-      image: '/lovable-uploads/ee5a5260-f02b-4a99-b6b5-139e89cf3261.png',
-      subscribers: '15K+'
-    },
-    {
-      url: 'https://t.me/ExpossDark',
-      name: 'Exposs Dark',
-      description: 'Dark Web & Security Tips',
-      image: '/lovable-uploads/4e3fe131-80b5-4522-8e01-86c7d4a52f0b.png',
-      subscribers: '8K+'
-    },
-    {
-      url: 'https://t.me/TechnicalAnas',
-      name: 'Technical Anas',
-      description: 'Technical Tutorials & Tips',
-      image: '/lovable-uploads/cf2c5d17-4c7b-49a0-8d98-7b0a557f35b1.png',
-      subscribers: '12K+'
-    },
-    {
-      url: 'https://t.me/Anas_Promotion',
-      name: 'Anas Promotion',
-      description: 'Latest Promotions & Offers',
-      image: '/lovable-uploads/8e0c3b55-4829-4ae7-9750-614619b6a3a5.png',
-      subscribers: '6K+'
-    }
-  ];
+  useEffect(() => {
+    loadChannels();
+  }, []);
 
-  const handleChannelClick = (channel: string) => {
-    window.open(channel, '_blank');
+  const loadChannels = async () => {
+    try {
+      const activeChannels = await channelService.getActiveChannels();
+      setChannels(activeChannels);
+    } catch (error) {
+      console.error('Error loading channels:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load channels",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChannelClick = (channelUrl: string) => {
+    window.open(channelUrl, '_blank');
     // Mark as clicked (user needs to manually verify)
     setTimeout(() => {
-      setJoinedChannels(prev => new Set([...prev, channel]));
+      setJoinedChannels(prev => new Set([...prev, channelUrl]));
       toast({
         title: "Channel Opened",
         description: "Please join the channel and come back",
@@ -99,6 +89,26 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
     }, 2500);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-6"></div>
+          <h2 className="text-2xl font-bold text-white mb-2">Loading Channels</h2>
+          <p className="text-gray-300">Preparing channel verification...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (channels.length === 0) {
+    // If no channels are active, skip verification
+    useEffect(() => {
+      onChannelsJoined();
+    }, []);
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Animated background elements */}
@@ -115,15 +125,15 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
             Ads by USDT Earn
           </h1>
           <p className="text-gray-300 text-lg">
-            Join all 4 channels to start earning
+            Join all {channels.length} channels to start earning
           </p>
         </div>
         
         <CardContent className="space-y-4 px-6 pb-8">
           {/* Channels List */}
           <div className="space-y-4">
-            {channelInfo.map((channel, index) => (
-              <div key={index} className="flex items-center space-x-4 p-4 bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-600/30 hover:border-blue-500/50 transition-all duration-300">
+            {channels.map((channel) => (
+              <div key={channel.id} className="flex items-center space-x-4 p-4 bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-600/30 hover:border-blue-500/50 transition-all duration-300">
                 {/* Join Status Circle */}
                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                   joinedChannels.has(channel.url) 
@@ -137,17 +147,28 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ channels, onChannel
 
                 {/* Channel Image */}
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700">
-                  <img 
-                    src={channel.image} 
-                    alt={channel.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {channel.logo_url ? (
+                    <img 
+                      src={channel.logo_url} 
+                      alt={channel.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">
+                        {channel.name.charAt(0)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Channel Info */}
                 <div className="flex-1">
                   <h3 className="text-white font-semibold text-sm">{channel.name}</h3>
                   <p className="text-gray-400 text-xs">{channel.description}</p>
+                  {channel.subscribers_count && (
+                    <p className="text-gray-500 text-xs">{channel.subscribers_count} subscribers</p>
+                  )}
                 </div>
 
                 {/* Join Button */}

@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
 import { dbService } from '../services/database';
+import { channelService } from '../services/channelService';
 import HomePage from '../components/HomePage';
 import AdViewerPage from '../components/AdViewerPage';
 import ReferralPage from '../components/ReferralPage';
@@ -29,13 +31,6 @@ const Index = () => {
   const [userBalance, setUserBalance] = useState(0);
   const [adsWatched, setAdsWatched] = useState(0);
   const { isChannelVerificationEnabled, loading: adminLoading } = useAdmin();
-
-  const requiredChannels = [
-    'https://t.me/AnasEarnHunter',
-    'https://t.me/ExpossDark', 
-    'https://t.me/TechnicalAnas',
-    'https://t.me/Anas_Promotion'
-  ];
 
   useEffect(() => {
     initializeApp();
@@ -175,14 +170,22 @@ const Index = () => {
           setUserBalance(dbUser.balance);
           setReferralCount(dbUser.referral_count || 0);
           setAdsWatched(dbUser.ads_watched_today || 0);
-          setHasJoinedChannels(dbUser.channels_joined || !isChannelVerificationEnabled);
+          
+          // Check if channel verification is required
+          if (isChannelVerificationEnabled) {
+            setHasJoinedChannels(dbUser.channels_joined || false);
+          } else {
+            setHasJoinedChannels(true); // Skip channel verification
+          }
+          
           setWithdrawalEnabled((dbUser.referral_count || 0) >= 5);
           
           console.log('📊 User state updated:', {
             balance: dbUser.balance,
             referralCount: dbUser.referral_count,
             adsWatched: dbUser.ads_watched_today,
-            hasJoinedChannels: dbUser.channels_joined
+            hasJoinedChannels: dbUser.channels_joined,
+            isChannelVerificationEnabled
           });
         }
       }
@@ -254,7 +257,6 @@ const Index = () => {
   if (isChannelVerificationEnabled && !hasJoinedChannels) {
     return (
       <JoinChannelsPage 
-        channels={requiredChannels}
         onChannelsJoined={handleChannelJoined}
       />
     );

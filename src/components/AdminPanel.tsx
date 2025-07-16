@@ -1,114 +1,76 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Users, Settings, DollarSign, Activity, Target, Trash2, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAdmin } from '../contexts/AdminContext';
-import { dbService, WithdrawalRequest, User } from '../services/database';
-import { taskService, Task } from '../services/taskService';
-import { Settings, Users, DollarSign, BarChart3, Globe, Shield, Eye, EyeOff, UserPlus, Edit2, Check, X, Plus, Trash2, Trophy } from 'lucide-react';
+import { dbService, User, WithdrawalRequest } from '@/services/database';
+import ChannelManagement from './ChannelManagement';
 
-const AdminPanel: React.FC = () => {
+const AdminPanel = () => {
+  const [users, setUsers] = useState<User[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [allTasks, setAllTasks] = useState<Task[]>([]);
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [adminId, setAdminId] = useState('');
-  const [showAdminId, setShowAdminId] = useState(false);
-  const [editingBalance, setEditingBalance] = useState<string | null>(null);
-  const [editBalance, setEditBalance] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [userStats, setUserStats] = useState<{
-    adsWatched: number;
-    tasksCompleted: number;
-    referralCount: number;
-    totalWithdrawals: number;
-    totalEarnings: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [deletingUser, setDeletingUser] = useState<string | null>(null);
-  
-  // Task form states
-  const [newTask, setNewTask] = useState({
-    title: '',
-    description: '',
-    task_type: 'telegram_channel' as const,
-    task_url: '',
-    reward_amount: 0.001,
-    is_active: true,
-    max_completions: 100,
-    total_budget: 0.1,
-    current_completions: 0
+  const [adminSettings, setAdminSettings] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalBalance: 0,
+    pendingWithdrawals: 0,
+    totalReferrals: 0
   });
-
   const { toast } = useToast();
-  const { settings, updateSettings, isChannelVerificationEnabled, setChannelVerificationEnabled } = useAdmin();
-
-  const ADMIN_TELEGRAM_ID = '7390932497';
 
   useEffect(() => {
-    if (window.Telegram?.WebApp) {
-      const user = window.Telegram.WebApp.initDataUnsafe?.user;
-      if (user && user.id.toString() === ADMIN_TELEGRAM_ID) {
-        setIsAuthorized(true);
-        loadAdminData();
-      }
-    }
+    loadAdminData();
+    
+    // Set up real-time subscriptions
+    const unsubscribeUsers = dbService.subscribeToUsers(setUsers);
+    const unsubscribeWithdrawals = dbService.subscribeToWithdrawals(setWithdrawalRequests);
+    const unsubscribeSettings = dbService.subscribeToAdminSettings(setAdminSettings);
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeWithdrawals();
+      unsubscribeSettings();
+    };
   }, []);
 
   useEffect(() => {
-    if (isAuthorized) {
-      // Subscribe to real-time updates
-      const unsubscribeWithdrawals = dbService.subscribeToWithdrawals((withdrawals) => {
-        setWithdrawalRequests(withdrawals);
-      });
+    // Calculate stats when users or withdrawals change
+    if (users.length > 0) {
+      const totalBalance = users.reduce((sum, user) => sum + (user.balance || 0), 0);
+      const totalReferrals = users.reduce((sum, user) => sum + (user.referral_count || 0), 0);
+      const pendingWithdrawals = withdrawalRequests
+        .filter(req => req.status === 'pending')
+        .reduce((sum, req) => sum + req.amount, 0);
 
-      const unsubscribeUsers = dbService.subscribeToUsers((users) => {
-        setAllUsers(users);
-      });
-
-      return () => {
-        if (unsubscribeWithdrawals) unsubscribeWithdrawals();
-        if (unsubscribeUsers) unsubscribeUsers();
-      };
-    }
-  }, [isAuthorized]);
-
-  const handleAdminLogin = () => {
-    if (adminId === ADMIN_TELEGRAM_ID) {
-      setIsAuthorized(true);
-      loadAdminData();
-      toast({
-        title: "Access Granted",
-        description: "Welcome to the Professional Admin Panel",
-      });
-    } else {
-      toast({
-        title: "Access Denied", 
-        description: "Invalid admin credentials",
-        variant: "destructive"
+      setStats({
+        totalUsers: users.length,
+        totalBalance,
+        totalReferrals,
+        pendingWithdrawals
       });
     }
-  };
+  }, [users, withdrawalRequests]);
 
   const loadAdminData = async () => {
     try {
       setLoading(true);
-      const [withdrawals, users, tasks] = await Promise.all([
-        dbService.getWithdrawalRequests(),
-        dbService.getAllUsers(),
-        taskService.getAllTasks()
-      ]);
       
-      setWithdrawalRequests(withdrawals);
-      setAllUsers(users);
-      setAllTasks(tasks);
+      const [usersData, withdrawalsData, settingsData] = await Promise.all([
+        dbService.getAllUsers(),
+        dbService.getWithdrawalRequests(),
+        dbService.getAdminSettings()
+      ]);
+
+      setUsers(usersData);
+      setWithdrawalRequests(withdrawalsData);
+      setAdminSettings(settingsData);
     } catch (error) {
       console.error('Error loading admin data:', error);
       toast({
@@ -121,101 +83,17 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleWithdrawalAction = async (withdrawalId: string, action: 'approve' | 'reject') => {
+  const handleUpdateBalance = async (telegramId: string, newBalance: number) => {
     try {
-      const status = action === 'approve' ? 'completed' : 'rejected';
-      const success = await dbService.updateWithdrawalStatus(withdrawalId, status);
-      
-      if (success) {
-        toast({
-          title: `Withdrawal ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-          description: `Request processed successfully`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to update withdrawal request",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Error updating withdrawal:', error);
-      toast({
-        title: "Error",
-        description: "Failed to process withdrawal request",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleSettingUpdate = async (key: string, value: string) => {
-    try {
-      await updateSettings({ [key]: value });
-      
-      toast({
-        title: "Setting Updated",
-        description: `${key} updated successfully - Changes applied instantly to all users`,
-      });
-    } catch (error) {
-      console.error('Error updating setting:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update setting",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const toggleChannelVerification = async (enabled: boolean) => {
-    try {
-      await setChannelVerificationEnabled(enabled);
-      
-      toast({
-        title: enabled ? "Channel Verification Enabled" : "Channel Verification Disabled",
-        description: enabled ? "Users must join all channels" : "Channel join requirement bypassed - All users can access immediately",
-      });
-    } catch (error) {
-      console.error('Error toggling channel verification:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update channel verification setting",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleBalanceEdit = (telegramId: string, currentBalance: number) => {
-    setEditingBalance(telegramId);
-    setEditBalance(currentBalance.toFixed(3));
-  };
-
-  const handleBalanceUpdate = async (telegramId: string) => {
-    try {
-      const newBalance = parseFloat(editBalance);
-      if (isNaN(newBalance) || newBalance < 0) {
-        toast({
-          title: "Invalid Balance",
-          description: "Please enter a valid positive number",
-          variant: "destructive"
-        });
-        return;
-      }
-
       const success = await dbService.adminUpdateUserBalance(telegramId, newBalance);
-      
       if (success) {
         toast({
-          title: "Balance Updated",
-          description: `User balance updated to $${newBalance.toFixed(3)}`,
+          title: "Success",
+          description: "User balance updated successfully",
         });
-        setEditingBalance(null);
-        loadAdminData(); // Refresh data
+        loadAdminData();
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to update user balance",
-          variant: "destructive"
-        });
+        throw new Error('Update failed');
       }
     } catch (error) {
       console.error('Error updating balance:', error);
@@ -227,137 +105,21 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const cancelBalanceEdit = () => {
-    setEditingBalance(null);
-    setEditBalance('');
-  };
-
-  // Task management functions
-  const handleCreateTask = async () => {
-    try {
-      if (!newTask.title || !newTask.task_url) {
-        toast({
-          title: "Validation Error",
-          description: "Title and URL are required",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const success = await taskService.createTask(newTask);
-      
-      if (success) {
-        toast({
-          title: "Task Created",
-          description: "New task has been created successfully",
-        });
-        
-        // Reset form
-        setNewTask({
-          title: '',
-          description: '',
-          task_type: 'telegram_channel',
-          task_url: '',
-          reward_amount: 0.001,
-          is_active: true,
-          max_completions: 100,
-          total_budget: 0.1,
-          current_completions: 0
-        });
-        
-        // Reload tasks
-        const tasks = await taskService.getAllTasks();
-        setAllTasks(tasks);
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to create task",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Error creating task:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create task",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleToggleTaskStatus = async (taskId: string, currentStatus: boolean) => {
-    try {
-      const success = await taskService.updateTask(taskId, { is_active: !currentStatus });
-      
-      if (success) {
-        toast({
-          title: "Task Updated",
-          description: `Task ${!currentStatus ? 'activated' : 'deactivated'} successfully`,
-        });
-        
-        // Update local state
-        setAllTasks(allTasks.map(task => 
-          task.id === taskId ? { ...task, is_active: !currentStatus } : task
-        ));
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to update task",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update task",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // User profile management
-  const handleViewUserProfile = async (user: User) => {
-    try {
-      setSelectedUser(user);
-      const stats = await dbService.getUserStats(user.telegram_id);
-      setUserStats(stats);
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load user profile",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const closeUserProfile = () => {
-    setSelectedUser(null);
-    setUserStats(null);
-  };
-
-  // Delete user function
-  const handleDeleteUser = async (telegramId: string, userName: string) => {
-    if (!confirm(`Are you sure you want to delete user ${userName}? This action cannot be undone.`)) {
+  const handleDeleteUser = async (telegramId: string, username: string) => {
+    if (!confirm(`Are you sure you want to delete user "${username || telegramId}"? This action cannot be undone.`)) {
       return;
     }
 
-    setDeletingUser(telegramId);
     try {
       const success = await dbService.deleteUser(telegramId);
       if (success) {
         toast({
-          title: "User Deleted",
-          description: `User ${userName} has been permanently deleted`,
+          title: "Success",
+          description: "User deleted successfully",
         });
-        await loadAdminData(); // Refresh the data
+        loadAdminData();
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete user",
-          variant: "destructive"
-        });
+        throw new Error('Delete failed');
       }
     } catch (error) {
       console.error('Error deleting user:', error);
@@ -366,872 +128,350 @@ const AdminPanel: React.FC = () => {
         description: "Failed to delete user",
         variant: "destructive"
       });
-    } finally {
-      setDeletingUser(null);
     }
   };
 
-  if (!isAuthorized) {
+  const handleUpdateSetting = async (key: string, value: string) => {
+    try {
+      const success = await dbService.updateAdminSetting(key, value);
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Setting updated successfully",
+        });
+      } else {
+        throw new Error('Update failed');
+      }
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update setting",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleWithdrawalAction = async (id: string, action: 'approve' | 'reject') => {
+    try {
+      const status = action === 'approve' ? 'completed' : 'rejected';
+      const success = await dbService.updateWithdrawalStatus(id, status);
+      
+      if (success) {
+        toast({
+          title: "Success",
+          description: `Withdrawal ${action}d successfully`,
+        });
+        loadAdminData();
+      } else {
+        throw new Error('Update failed');
+      }
+    } catch (error) {
+      console.error('Error updating withdrawal:', error);
+      toast({
+        title: "Error",
+        description: `Failed to ${action} withdrawal`,
+        variant: "destructive"
+      });
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-gray-800/90 backdrop-blur-sm border-gray-700 shadow-2xl">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-r from-red-500 to-purple-600 rounded-full flex items-center justify-center">
-              <Shield className="w-8 h-8 text-white" />
-            </div>
-            <CardTitle className="text-white text-2xl">Admin Access Required</CardTitle>
-            <p className="text-gray-400 mt-2">Professional Control Panel</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="adminId" className="text-white">Admin Telegram ID</Label>
-              <div className="relative">
-                <Input
-                  id="adminId"
-                  type={showAdminId ? "text" : "password"}
-                  placeholder="Enter your admin ID"
-                  value={adminId}
-                  onChange={(e) => setAdminId(e.target.value)}
-                  className="bg-gray-700 border-gray-600 text-white pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowAdminId(!showAdminId)}
-                >
-                  {showAdminId ? (
-                    <EyeOff className="h-4 w-4 text-gray-400" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-gray-400" />
-                  )}
-                </Button>
-              </div>
-            </div>
-            <Button onClick={handleAdminLogin} className="w-full bg-gradient-to-r from-blue-600 to-purple-600">
-              Access Control Panel
-            </Button>
-            <div className="text-center">
-              <p className="text-gray-400 text-xs p-3 bg-gray-800/50 rounded-lg">
-                🔐 Secure Admin Authentication
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading Admin Panel...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+    <div className="min-h-screen bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Professional Admin Control Panel
-          </h1>
-          <p className="text-gray-400">Real-time management for Ads by USDT Earn</p>
-          <div className="mt-4 bg-green-600/20 border border-green-500/30 rounded-lg p-3">
-            <p className="text-green-300 text-sm">✅ All changes apply instantly to user experience</p>
-          </div>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
+          <p className="text-gray-400">Manage your Telegram Mini App</p>
         </div>
-        
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-sm">Total Users</p>
+                  <p className="text-2xl font-bold text-white">{stats.totalUsers}</p>
+                </div>
+                <Users className="w-8 h-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-sm">Total Balance</p>
+                  <p className="text-2xl font-bold text-white">${stats.totalBalance.toFixed(3)}</p>
+                </div>
+                <DollarSign className="w-8 h-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-sm">Pending Withdrawals</p>
+                  <p className="text-2xl font-bold text-white">${stats.pendingWithdrawals.toFixed(3)}</p>
+                </div>
+                <Activity className="w-8 h-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-sm">Total Referrals</p>
+                  <p className="text-2xl font-bold text-white">{stats.totalReferrals}</p>
+                </div>
+                <Target className="w-8 h-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tabs */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 bg-gray-800/50 backdrop-blur-sm border border-gray-700">
-            <TabsTrigger value="users" className="flex items-center space-x-2">
-              <Users className="w-4 h-4" />
-              <span>Users</span>
-            </TabsTrigger>
-            <TabsTrigger value="tasks" className="flex items-center space-x-2">
-              <Trophy className="w-4 h-4" />
-              <span>Tasks</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center space-x-2">
-              <Settings className="w-4 h-4" />
-              <span>Settings</span>
-            </TabsTrigger>
-            <TabsTrigger value="withdrawals" className="flex items-center space-x-2">
-              <DollarSign className="w-4 h-4" />
-              <span>Withdrawals</span>
-            </TabsTrigger>
-            <TabsTrigger value="ads" className="flex items-center space-x-2">
-              <Globe className="w-4 h-4" />
-              <span>Ads</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4" />
-              <span>Analytics</span>
-            </TabsTrigger>
+          <TabsList className="bg-gray-800 border-gray-700">
+            <TabsTrigger value="users" className="data-[state=active]:bg-gray-700">Users</TabsTrigger>
+            <TabsTrigger value="channels" className="data-[state=active]:bg-gray-700">Channels</TabsTrigger>
+            <TabsTrigger value="withdrawals" className="data-[state=active]:bg-gray-700">Withdrawals</TabsTrigger>
+            <TabsTrigger value="settings" className="data-[state=active]:bg-gray-700">Settings</TabsTrigger>
           </TabsList>
 
-          {/* Tasks Management Tab */}
-          <TabsContent value="tasks">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Create New Task */}
-              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Plus className="w-5 h-5 mr-2" />
-                    Create New Task
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-white">Task Title</Label>
-                    <Input
-                      value={newTask.title}
-                      onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="e.g., Join our Telegram Channel"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-white">Description</Label>
-                    <Textarea
-                      value={newTask.description}
-                      onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="Optional description..."
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-white">Task Type</Label>
-                    <Select
-                      value={newTask.task_type}
-                      onValueChange={(value: any) => setNewTask({ ...newTask, task_type: value })}
-                    >
-                      <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-700 border-gray-600">
-                        <SelectItem value="telegram_join">Telegram Bot Join</SelectItem>
-                        <SelectItem value="telegram_channel">Telegram Channel</SelectItem>
-                        <SelectItem value="youtube_subscribe">YouTube Subscribe</SelectItem>
-                        <SelectItem value="website_visit">Website Visit</SelectItem>
-                        <SelectItem value="social_follow">Social Follow</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-white">Task URL</Label>
-                    <Input
-                      value={newTask.task_url}
-                      onChange={(e) => setNewTask({ ...newTask, task_url: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="https://t.me/yourchannel"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-white">Reward Amount (USDT)</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      value={newTask.reward_amount}
-                      onChange={(e) => setNewTask({ ...newTask, reward_amount: parseFloat(e.target.value) || 0 })}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="0.001"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-white">Max Completions (Auto-calculated)</Label>
-                      <Input
-                        type="number"
-                        value={newTask.max_completions}
-                        onChange={(e) => {
-                          const completions = parseInt(e.target.value) || 0;
-                          const reward = newTask.reward_amount;
-                          const totalBudget = completions * reward;
-                          
-                          setNewTask({ 
-                            ...newTask, 
-                            max_completions: completions,
-                            total_budget: totalBudget
-                          });
-                        }}
-                        className="bg-gray-700 border-gray-600 text-white"
-                        placeholder="100"
-                      />
-                      <p className="text-green-400 text-xs mt-1">
-                        {newTask.total_budget > 0 && newTask.reward_amount > 0 
-                          ? `Auto-calculated from budget: ${Math.floor(newTask.total_budget / newTask.reward_amount)} users`
-                          : "Will be calculated from total budget"
-                        }
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <Label className="text-white">Total Budget (USDT)</Label>
-                      <Input
-                        type="number"
-                        step="0.001"
-                        value={newTask.total_budget}
-                        onChange={(e) => {
-                          const budget = parseFloat(e.target.value) || 0;
-                          const reward = newTask.reward_amount;
-                          const maxCompletions = reward > 0 ? Math.floor(budget / reward) : 0;
-                          
-                          setNewTask({ 
-                            ...newTask, 
-                            total_budget: budget,
-                            max_completions: maxCompletions
-                          });
-                        }}
-                        className="bg-gray-700 border-gray-600 text-white"
-                        placeholder="0.1"
-                      />
-                      <p className="text-gray-400 text-xs mt-1">Total amount allocated for this task</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      checked={newTask.is_active}
-                      onCheckedChange={(checked) => setNewTask({ ...newTask, is_active: checked })}
-                    />
-                    <Label className="text-white">Active</Label>
-                  </div>
-
-                  <Button
-                    onClick={handleCreateTask}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Task
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Task Statistics */}
-              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Task Statistics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-600/20 p-4 rounded-lg">
-                      <h3 className="text-blue-300 text-sm">Total Tasks</h3>
-                      <p className="text-2xl font-bold text-white">{allTasks.length}</p>
-                    </div>
-                    <div className="bg-green-600/20 p-4 rounded-lg">
-                      <h3 className="text-green-300 text-sm">Active Tasks</h3>
-                      <p className="text-2xl font-bold text-white">
-                        {allTasks.filter(t => t.is_active).length}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Existing Tasks */}
-            <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+          {/* Users Tab */}
+          <TabsContent value="users">
+            <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
-                <CardTitle className="text-white">All Tasks ({allTasks.length})</CardTitle>
+                <CardTitle className="text-white">User Management</CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-400">Loading tasks...</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-gray-600">
-                          <TableHead className="text-gray-300">Task</TableHead>
-                          <TableHead className="text-gray-300">Type</TableHead>
-                          <TableHead className="text-gray-300">Reward</TableHead>
-                          <TableHead className="text-gray-300">Progress</TableHead>
-                          <TableHead className="text-gray-300">Budget</TableHead>
-                          <TableHead className="text-gray-300">Status</TableHead>
-                          <TableHead className="text-gray-300">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {allTasks.map((task) => (
-                          <TableRow key={task.id} className="border-gray-600">
-                            <TableCell>
-                              <div>
-                                <p className="text-white font-medium">{task.title}</p>
-                                {task.description && (
-                                  <p className="text-gray-400 text-sm">{task.description}</p>
-                                )}
-                                <p className="text-blue-400 text-xs">{task.task_url}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-gray-300 capitalize">
-                                {task.task_type.replace('_', ' ')}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-green-400 font-bold">
-                                ${task.reward_amount.toFixed(3)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-sm">
-                                <span className="text-blue-400">
-                                  {task.current_completions}/{task.max_completions || '∞'}
-                                </span>
-                                <div className="w-full bg-gray-600 rounded-full h-2 mt-1">
-                                  <div 
-                                    className="bg-blue-500 h-2 rounded-full" 
-                                    style={{ 
-                                      width: task.max_completions 
-                                        ? `${Math.min((task.current_completions / task.max_completions) * 100, 100)}%` 
-                                        : '0%' 
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-purple-400 font-medium">
-                                ${(task.total_budget || 0).toFixed(3)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                task.is_active 
-                                  ? 'bg-green-600/20 text-green-300' 
-                                  : 'bg-red-600/20 text-red-300'
-                              }`}>
-                                {task.is_active ? 'Active' : 'Inactive'}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                size="sm"
-                                variant={task.is_active ? "destructive" : "default"}
-                                onClick={() => handleToggleTaskStatus(task.id, task.is_active)}
-                                className="h-8 px-3"
-                              >
-                                {task.is_active ? 'Deactivate' : 'Activate'}
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-700">
+                        <th className="text-left py-3 px-4 text-gray-300">User</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Balance</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Referrals</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id} className="border-b border-gray-700/50">
+                          <td className="py-3 px-4">
+                            <div>
+                              <p className="text-white font-medium">
+                                {user.first_name} {user.last_name}
+                              </p>
+                              <p className="text-gray-400 text-xs">@{user.username || 'no_username'}</p>
+                              <p className="text-gray-500 text-xs">ID: {user.telegram_id}</p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                type="number"
+                                step="0.001"
+                                defaultValue={user.balance?.toFixed(3) || '0.000'}
+                                className="w-24 bg-gray-700 border-gray-600 text-white text-sm"
+                                onBlur={(e) => {
+                                  const newBalance = parseFloat(e.target.value) || 0;
+                                  if (newBalance !== user.balance) {
+                                    handleUpdateBalance(user.telegram_id, newBalance);
+                                  }
+                                }}
+                              />
+                              <span className="text-gray-400 text-xs">USDT</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-white">{user.referral_count || 0}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant={user.channels_joined ? "default" : "secondary"}>
+                              {user.channels_joined ? 'Verified' : 'Unverified'}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteUser(user.telegram_id, user.username || user.first_name || '')}
+                              className="border-red-600 text-red-400 hover:bg-red-900/20"
+                            >
+                              <UserX className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Users Management Tab */}
-          <TabsContent value="users">
-            <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+          {/* Channels Tab */}
+          <TabsContent value="channels">
+            <ChannelManagement />
+          </TabsContent>
+
+          {/* Withdrawals Tab */}
+          <TabsContent value="withdrawals">
+            <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <UserPlus className="w-5 h-5 mr-2" />
-                  User Management ({allUsers.length} total users)
-                  <span className="ml-auto text-xs bg-green-600/20 text-green-300 px-2 py-1 rounded">LIVE</span>
-                </CardTitle>
+                <CardTitle className="text-white">Withdrawal Requests</CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-400">Loading users...</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-gray-600">
-                          <TableHead className="text-gray-300">User</TableHead>
-                          <TableHead className="text-gray-300">Balance</TableHead>
-                          <TableHead className="text-gray-300">Referrals</TableHead>
-                          <TableHead className="text-gray-300">Ads Today</TableHead>
-                          <TableHead className="text-gray-300">Joined</TableHead>
-                          <TableHead className="text-gray-300">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {allUsers.map((user) => (
-                          <TableRow key={user.telegram_id} className="border-gray-600">
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span className="text-white font-medium">
-                                  {user.first_name} {user.last_name}
-                                </span>
-                                <span className="text-gray-400 text-sm">
-                                  @{user.username || 'N/A'} • ID: {user.telegram_id}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {editingBalance === user.telegram_id ? (
-                                <div className="flex items-center space-x-2">
-                                  <Input
-                                    type="number"
-                                    step="0.001"
-                                    value={editBalance}
-                                    onChange={(e) => setEditBalance(e.target.value)}
-                                    className="w-24 h-8 bg-gray-700 border-gray-600 text-white"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleBalanceUpdate(user.telegram_id)}
-                                    className="h-8 px-2 bg-green-600 hover:bg-green-700"
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={cancelBalanceEdit}
-                                    className="h-8 px-2"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-green-400 font-bold">
-                                    ${(user.balance || 0).toFixed(3)}
-                                  </span>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleBalanceEdit(user.telegram_id, user.balance || 0)}
-                                    className="h-6 w-6 p-0 text-gray-400 hover:text-white"
-                                  >
-                                    <Edit2 className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-blue-400 font-medium">{user.referral_count || 0}</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-purple-400">{user.ads_watched_today || 0}/30</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-gray-400 text-sm">
-                                {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                               <div className="flex space-x-1">
+                <div className="space-y-4">
+                  {withdrawalRequests.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No withdrawal requests found</p>
+                  ) : (
+                    withdrawalRequests.map((request) => (
+                      <div key={request.id} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-medium">@{request.username}</p>
+                            <p className="text-gray-400 text-sm">Amount: ${request.amount.toFixed(3)} USDT</p>
+                            <p className="text-gray-400 text-sm">Method: {request.withdrawal_method}</p>
+                            <p className="text-gray-400 text-sm">Wallet: {request.wallet_address}</p>
+                            <p className="text-gray-500 text-xs">
+                              {new Date(request.created_at!).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={
+                              request.status === 'completed' ? 'default' :
+                              request.status === 'rejected' ? 'destructive' : 'secondary'
+                            }>
+                              {request.status || 'pending'}
+                            </Badge>
+                            {request.status === 'pending' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleWithdrawalAction(request.id, 'approve')}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  Approve
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleViewUserProfile(user)}
-                                  className="h-8 px-2 text-xs border-gray-600 text-gray-300 hover:bg-blue-600/20"
+                                  onClick={() => handleWithdrawalAction(request.id, 'reject')}
+                                  className="border-red-600 text-red-400"
                                 >
-                                  View Profile
+                                  Reject
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => handleDeleteUser(user.telegram_id, `${user.first_name} ${user.last_name}`)}
-                                  disabled={deletingUser === user.telegram_id}
-                                  className="h-8 px-2 text-xs"
-                                >
-                                  {deletingUser === user.telegram_id ? (
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b border-white"></div>
-                                  ) : (
-                                    'Delete'
-                                  )}
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <DollarSign className="w-5 h-5 mr-2" />
-                    Earning Settings
-                    <span className="ml-auto text-xs bg-green-600/20 text-green-300 px-2 py-1 rounded">LIVE</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-white">Ad Reward Rate (USDT)</Label>
-                    <Input
-                      value={settings.adRewardRate}
-                      onChange={(e) => handleSettingUpdate('adRewardRate', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="0.05"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-white">Referral Bonus (%)</Label>
-                    <Input
-                      value={settings.referralRate}
-                      onChange={(e) => handleSettingUpdate('referralRate', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="10"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-white">Minimum Withdrawal (USDT)</Label>
-                    <Input
-                      value={settings.minWithdrawal}
-                      onChange={(e) => handleSettingUpdate('minWithdrawal', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="1.0"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-white">Required Referrals for Withdrawal</Label>
-                    <Input
-                      value={settings.requiredReferrals}
-                      onChange={(e) => handleSettingUpdate('requiredReferrals', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="5"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Settings className="w-5 h-5 mr-2" />
-                    System Controls
-                    <span className="ml-auto text-xs bg-green-600/20 text-green-300 px-2 py-1 rounded">LIVE</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-white">Daily Ad Limit</Label>
-                    <Input
-                      value={settings.dailyAdLimit}
-                      onChange={(e) => handleSettingUpdate('dailyAdLimit', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="30"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
-                    <div>
-                      <Label className="text-white font-medium">Channel Verification</Label>
-                      <p className="text-sm text-gray-400">Force users to join channels</p>
-                    </div>
-                    <Switch
-                      checked={isChannelVerificationEnabled}
-                      onCheckedChange={toggleChannelVerification}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Ads Management Tab */}
-          <TabsContent value="ads">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">HTML Ad Code</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Textarea
-                      value={settings.htmlAdCode}
-                      onChange={(e) => handleSettingUpdate('htmlAdCode', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white min-h-[150px]"
-                      placeholder="Enter your HTML ad code..."
-                    />
-                    <p className="text-gray-400 text-sm">
-                      HTML ads will be displayed to users with live updates
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Monetag Banner Integration</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Textarea
-                      value={settings.monetagBannerCode}
-                      onChange={(e) => handleSettingUpdate('monetagBannerCode', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white min-h-[150px]"
-                      placeholder="Paste your Monetag banner code here..."
-                    />
-                    <p className="text-gray-400 text-sm">
-                      🔥 Monetag banners provide high-converting ads with instant updates
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Withdrawal Management */}
-          <TabsContent value="withdrawals">
-            <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700">
+            <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
-                <CardTitle className="text-white">Pending Withdrawals</CardTitle>
+                <CardTitle className="text-white flex items-center">
+                  <Settings className="w-5 h-5 mr-2" />
+                  App Settings
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {withdrawalRequests.filter(request => request.status === 'pending').map((request) => (
-                    <div key={request.id} className="flex justify-between items-center p-4 bg-gray-700/50 rounded-lg border border-gray-600">
-                      <div className="space-y-1">
-                        <p className="text-white font-medium">@{request.username}</p>
-                        <p className="text-green-400 font-bold">${request.amount.toFixed(2)} USDT</p>
-                        <p className="text-gray-400 text-sm">{request.withdrawal_method === 'binance' ? 'Binance Pay ID' : 'USDT TRC20'}</p>
-                        <p className="text-gray-300 text-sm font-mono">{request.wallet_address}</p>
-                        <p className="text-gray-500 text-xs">{new Date(request.created_at || '').toLocaleDateString()}</p>
-                      </div>
-                      <div className="space-x-2">
-                        <Button 
-                          size="sm" 
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => handleWithdrawalAction(request.id, 'approve')}
-                        >
-                          Approve
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => handleWithdrawalAction(request.id, 'reject')}
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {withdrawalRequests.filter(request => request.status === 'pending').length === 0 && (
-                    <div className="text-center py-8">
-                      <p className="text-gray-400">No pending withdrawal requests</p>
-                    </div>
-                  )}
+              <CardContent className="space-y-6">
+                {/* Channel Verification Setting */}
+                <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                  <div>
+                    <Label className="text-white font-medium">Channel Verification</Label>
+                    <p className="text-gray-400 text-sm">Require users to join channels before using the app</p>
+                  </div>
+                  <Switch
+                    checked={adminSettings.channel_verification_enabled === 'true'}
+                    onCheckedChange={(checked) => 
+                      handleUpdateSetting('channel_verification_enabled', checked.toString())
+                    }
+                  />
+                </div>
+
+                {/* Ad Reward Setting */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Ad Reward Amount (USDT)</Label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    defaultValue={adminSettings.ad_reward_amount || '0.001'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('ad_reward_amount', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Amount users earn per ad view</p>
+                </div>
+
+                {/* Daily Ad Limit Setting */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Daily Ad Limit</Label>
+                  <Input
+                    type="number"
+                    defaultValue={adminSettings.daily_ad_limit || '50'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('daily_ad_limit', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Maximum ads per user per day</p>
+                </div>
+
+                {/* Referral Bonus Setting */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Referral Bonus (USDT)</Label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    defaultValue={adminSettings.referral_bonus || '0.01'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('referral_bonus', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Bonus amount per successful referral</p>
+                </div>
+
+                {/* Minimum Withdrawal Setting */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Minimum Withdrawal (USDT)</Label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    defaultValue={adminSettings.min_withdrawal_amount || '5.000'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('min_withdrawal_amount', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Minimum amount for withdrawal requests</p>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Analytics Tab */}
-          <TabsContent value="analytics">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30">
-                <CardContent className="p-6 text-center">
-                  <Users className="w-12 h-12 text-blue-400 mx-auto mb-2" />
-                  <h3 className="text-2xl font-bold text-white">{allUsers.length}</h3>
-                  <p className="text-gray-400">Total Users</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-br from-green-600/20 to-blue-600/20 border-green-500/30">
-                <CardContent className="p-6 text-center">
-                  <DollarSign className="w-12 h-12 text-green-400 mx-auto mb-2" />
-                  <h3 className="text-2xl font-bold text-white">
-                    ${allUsers.reduce((sum, user) => sum + (user.balance || 0), 0).toFixed(2)}
-                  </h3>
-                  <p className="text-gray-400">Total Balance</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 border-purple-500/30">
-                <CardContent className="p-6 text-center">
-                  <BarChart3 className="w-12 h-12 text-purple-400 mx-auto mb-2" />
-                  <h3 className="text-2xl font-bold text-white">
-                    {allUsers.reduce((sum, user) => sum + (user.ads_watched_today || 0), 0)}
-                  </h3>
-                  <p className="text-gray-400">Ads Watched Today</p>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
         </Tabs>
-
-        {/* User Profile Modal */}
-        {selectedUser && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <Card className="w-full max-w-4xl bg-gray-800/90 backdrop-blur-sm border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-white text-2xl">
-                    {selectedUser.first_name} {selectedUser.last_name}
-                  </CardTitle>
-                  <p className="text-gray-400">@{selectedUser.username} • ID: {selectedUser.telegram_id}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={closeUserProfile}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {userStats ? (
-                  <div className="space-y-6">
-                    {/* Overview Stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-blue-600/20 p-4 rounded-lg text-center">
-                        <h3 className="text-blue-300 text-sm">Ads Watched</h3>
-                        <p className="text-2xl font-bold text-white">{userStats.adsWatched}</p>
-                      </div>
-                      <div className="bg-green-600/20 p-4 rounded-lg text-center">
-                        <h3 className="text-green-300 text-sm">Tasks Completed</h3>
-                        <p className="text-2xl font-bold text-white">{userStats.tasksCompleted}</p>
-                      </div>
-                      <div className="bg-purple-600/20 p-4 rounded-lg text-center">
-                        <h3 className="text-purple-300 text-sm">Referrals</h3>
-                        <p className="text-2xl font-bold text-white">{userStats.referralCount}</p>
-                      </div>
-                      <div className="bg-orange-600/20 p-4 rounded-lg text-center">
-                        <h3 className="text-orange-300 text-sm">Withdrawals</h3>
-                        <p className="text-2xl font-bold text-white">{userStats.totalWithdrawals}</p>
-                      </div>
-                    </div>
-
-                    {/* Detailed Information */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <Card className="bg-gray-700/50 border-gray-600">
-                        <CardHeader>
-                          <CardTitle className="text-white text-lg">Account Info</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Current Balance:</span>
-                            <span className="text-green-400 font-bold">${(selectedUser.balance || 0).toFixed(3)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Total Earnings:</span>
-                            <span className="text-blue-400 font-bold">${userStats.totalEarnings.toFixed(3)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Joined:</span>
-                            <span className="text-gray-300">
-                              {selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString() : 'N/A'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Channels Joined:</span>
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              selectedUser.channels_joined 
-                                ? 'bg-green-600/20 text-green-300' 
-                                : 'bg-red-600/20 text-red-300'
-                            }`}>
-                              {selectedUser.channels_joined ? 'Yes' : 'No'}
-                            </span>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="bg-gray-700/50 border-gray-600">
-                        <CardHeader>
-                          <CardTitle className="text-white text-lg">Activity Stats</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Ads Today:</span>
-                            <span className="text-purple-400">{selectedUser.ads_watched_today || 0}/30</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Spins Today:</span>
-                            <span className="text-yellow-400">{selectedUser.spins_used_today || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Last Activity:</span>
-                            <span className="text-gray-300">
-                              {selectedUser.last_activity_date ? new Date(selectedUser.last_activity_date).toLocaleDateString() : 'N/A'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Referred By:</span>
-                            <span className="text-blue-400">{selectedUser.referred_by || 'Direct'}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="bg-gray-700/50 border-gray-600">
-                        <CardHeader>
-                          <CardTitle className="text-white text-lg">Performance</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="text-center">
-                            <p className="text-gray-400 text-sm">Completion Rate</p>
-                            <div className="w-full bg-gray-600 rounded-full h-3 mt-2">
-                              <div 
-                                className="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full" 
-                                style={{ 
-                                  width: userStats.tasksCompleted > 0 ? '85%' : '0%' 
-                                }}
-                              />
-                            </div>
-                            <p className="text-white font-bold mt-1">85%</p>
-                          </div>
-                          <div className="text-center mt-4">
-                            <p className="text-gray-400 text-sm">User Rating</p>
-                            <div className="flex justify-center mt-1">
-                              {[1,2,3,4,5].map((star) => (
-                                <span key={star} className="text-yellow-400">⭐</span>
-                              ))}
-                            </div>
-                            <p className="text-white font-bold">Excellent</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-center space-x-4 pt-4">
-                      <Button
-                        onClick={() => handleBalanceEdit(selectedUser.telegram_id, selectedUser.balance || 0)}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Edit2 className="w-4 h-4 mr-2" />
-                        Edit Balance
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={closeUserProfile}
-                        className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                      >
-                        Close Profile
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                    <p className="text-gray-400 mt-4">Loading user statistics...</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        <div className="mt-8 text-center">
-          <p className="text-gray-400 text-sm">
-            🚀 Professional Admin Panel • Real-time Updates • Secure Management
-          </p>
-        </div>
       </div>
     </div>
   );

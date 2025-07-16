@@ -1,23 +1,22 @@
+
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  CheckCircle, 
-  Clock, 
-  ExternalLink, 
-  Trophy, 
-  Youtube, 
-  MessageCircle, 
-  Globe, 
-  Users,
-  DollarSign,
-  RefreshCw,
-  Timer,
-  Plus
-} from 'lucide-react';
+import { Coins, ExternalLink, CheckCircle, Clock, Trophy, Gift } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { taskService, TaskWithCompletion } from '../services/taskService';
+import { taskService } from '@/services/taskService';
+
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  reward_amount: number;
+  task_type: string;
+  task_url: string;
+  max_completions?: number;
+  current_completions?: number;
+}
 
 interface TasksPageProps {
   userInfo: any;
@@ -26,137 +25,86 @@ interface TasksPageProps {
 }
 
 const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUserBalance }) => {
-  const [tasks, setTasks] = useState<TaskWithCompletion[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [taskTimers, setTaskTimers] = useState<Record<string, number>>({});
-  const [showContactPage, setShowContactPage] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     loadTasks();
   }, [userInfo]);
 
-  // Timer countdown effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTaskTimers(prev => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach(taskId => {
-          if (updated[taskId] > 0) {
-            updated[taskId] -= 1;
-          }
-        });
-        return updated;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   const loadTasks = async () => {
-    if (userInfo?.id) {
-      setLoading(true);
-      try {
-        const userTasks = await taskService.getTasksForUser(userInfo.id.toString());
-        setTasks(userTasks);
-      } catch (error) {
-        console.error('Error loading tasks:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  const refreshTasks = async () => {
-    setRefreshing(true);
-    await loadTasks();
-    setRefreshing(false);
-    toast({
-      title: "Refreshed!",
-      description: "Task list has been updated",
-    });
-  };
-
-  const startTaskTimer = (taskId: string) => {
-    // Set timer between 30-60 seconds for better validation
-    const waitTime = Math.floor(Math.random() * 31) + 30;
-    setTaskTimers(prev => ({ ...prev, [taskId]: waitTime }));
+    if (!userInfo) return;
     
-    toast({
-      title: "Task Started!",
-      description: `Please complete the task first, then wait ${waitTime} seconds before claiming reward`,
-    });
+    try {
+      setLoading(true);
+      const [availableTasks, userCompletedTasks] = await Promise.all([
+        taskService.getAvailableTasks(),
+        taskService.getUserCompletedTasks(userInfo.id.toString())
+      ]);
+
+      // Create set of completed task IDs for quick lookup
+      const completedTaskIds = new Set(userCompletedTasks.map(task => task.task_id));
+      setCompletedTasks(completedTaskIds);
+
+      // Filter out tasks that are completed by user or reached max completions
+      const filteredTasks = availableTasks.filter(task => {
+        const isCompletedByUser = completedTaskIds.has(task.id);
+        const hasReachedLimit = task.max_completions && task.current_completions >= task.max_completions;
+        return !isCompletedByUser && !hasReachedLimit;
+      });
+
+      setTasks(filteredTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tasks",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCompleteTask = async (taskId: string) => {
-    if (!userInfo?.id) return;
+  const handleTaskComplete = async (task: Task) => {
+    if (!userInfo || completingTask) return;
 
-    // Check if timer is still running
-    if (taskTimers[taskId] > 0) {
-      toast({
-        title: "Please Wait!",
-        description: `Complete the task first, then wait ${taskTimers[taskId]} more seconds`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Additional validation - ensure user has visited the task
-    const taskStartTime = localStorage.getItem(`task_start_${taskId}`);
-    if (!taskStartTime) {
-      toast({
-        title: "Task Not Started!",
-        description: "Please visit the task link first before claiming reward",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if enough time has passed since task start
-    const timeElapsed = Date.now() - parseInt(taskStartTime);
-    if (timeElapsed < 30000) { // Minimum 30 seconds
-      toast({
-        title: "Complete the Task!",
-        description: "Please spend more time completing the task",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setCompletingTask(taskId);
+    setCompletingTask(task.id);
+    
     try {
-      const success = await taskService.completeTask(userInfo.id.toString(), taskId);
+      // Open task URL
+      window.open(task.task_url, '_blank');
       
+      // Wait a bit for user to complete the task
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Complete the task
+      const success = await taskService.completeTask(
+        task.id,
+        userInfo.id.toString(),
+        task.reward_amount
+      );
+
       if (success) {
-        const task = tasks.find(t => t.id === taskId);
-        const reward = task?.reward_amount || 0;
+        // Update balance
+        const newBalance = userBalance + task.reward_amount;
+        updateUserBalance(newBalance);
+        
+        // Remove task from list
+        setTasks(prev => prev.filter(t => t.id !== task.id));
+        setCompletedTasks(prev => new Set([...prev, task.id]));
         
         toast({
-          title: "🎉 Task Completed!",
-          description: `Congratulations! You earned $${reward.toFixed(3)} USDT!`,
+          title: "Task Completed! 🎉",
+          description: `You earned $${task.reward_amount.toFixed(3)} USDT`,
         });
-
-        // Update local state
-        updateUserBalance(userBalance + reward);
-        setTasks(tasks.map(t => 
-          t.id === taskId 
-            ? { ...t, completed: true, completion_date: new Date().toISOString() }
-            : t
-        ));
-
-        // Clear timer and localStorage
-        setTaskTimers(prev => {
-          const updated = { ...prev };
-          delete updated[taskId];
-          return updated;
-        });
-        localStorage.removeItem(`task_start_${taskId}`);
       } else {
         toast({
           title: "Error",
-          description: "Task already completed or invalid",
+          description: "Failed to complete task. Please try again.",
           variant: "destructive"
         });
       }
@@ -164,7 +112,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
       console.error('Error completing task:', error);
       toast({
         title: "Error",
-        description: "Failed to complete task. Please try again.",
+        description: "Failed to complete task",
         variant: "destructive"
       });
     } finally {
@@ -172,326 +120,151 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
     }
   };
 
-  const getTaskIcon = (taskType: string) => {
-    switch (taskType) {
-      case 'telegram_join':
-      case 'telegram_channel':
-        return <MessageCircle className="w-6 h-6 text-blue-400" />;
-      case 'youtube_subscribe':
-        return <Youtube className="w-6 h-6 text-red-400" />;
-      case 'website_visit':
-        return <Globe className="w-6 h-6 text-green-400" />;
-      case 'social_follow':
-        return <Users className="w-6 h-6 text-purple-400" />;
-      default:
-        return <Trophy className="w-6 h-6 text-yellow-400" />;
-    }
-  };
-
-  const getTaskTypeText = (taskType: string) => {
-    switch (taskType) {
-      case 'telegram_join':
-        return 'Telegram Bot';
-      case 'telegram_channel':
-        return 'Telegram Channel';
-      case 'youtube_subscribe':
-        return 'YouTube Subscribe';
-      case 'website_visit':
-        return 'Website Visit';
-      case 'social_follow':
-        return 'Social Media';
-      default:
-        return 'Other';
-    }
-  };
-
-  const completedTasks = tasks.filter(t => t.completed);
-  const availableTasks = tasks.filter(t => !t.completed);
-  const totalEarned = completedTasks.reduce((sum, task) => sum + task.reward_amount, 0);
-
-  const ContactPage = () => (
-    <div className="p-4 space-y-6">
-      <div className="text-center py-4">
-        <h1 className="text-2xl font-bold text-white mb-2">Add Your Task</h1>
-        <p className="text-gray-400">Contact us to add your custom task</p>
-      </div>
-
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white text-center">Contact Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="text-center space-y-4">
-            <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 p-6 rounded-lg border border-blue-500/30">
-              <h3 className="text-white text-lg font-bold mb-4">Get in touch with us</h3>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-center space-x-3">
-                  <MessageCircle className="w-6 h-6 text-blue-400" />
-                  <div>
-                    <p className="text-gray-300 text-sm">Telegram Username</p>
-                    <p className="text-white font-bold">@Owner_USDTBot</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-center space-x-3">
-                  <Globe className="w-6 h-6 text-green-400" />
-                  <div>
-                    <p className="text-gray-300 text-sm">Phone Number</p>
-                    <p className="text-white font-bold">+8801305188972</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-700/50 p-4 rounded-lg">
-              <h4 className="text-white font-medium mb-2">How to Add Your Task</h4>
-              <div className="text-gray-300 text-sm space-y-1">
-                <p>• Contact us via Telegram or phone</p>
-                <p>• Provide task details and requirements</p>
-                <p>• We'll add your task to the platform</p>
-                <p>• Users will complete your task and earn rewards</p>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => setShowContactPage(false)}
-              className="w-full bg-blue-600 hover:bg-blue-700"
-            >
-              Back to Tasks
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-
-  if (showContactPage) {
-    return <ContactPage />;
-  }
-
   if (loading) {
     return (
-      <div className="p-4 space-y-6">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading tasks...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-white">Loading tasks...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
       {/* Header */}
-      <div className="text-center py-4">
-        <div className="flex items-center justify-center space-x-2 mb-2">
-          <h1 className="text-2xl font-bold text-white">Task Center</h1>
-          <Button
-            onClick={refreshTasks}
-            disabled={refreshing}
-            variant="ghost"
-            size="sm"
-            className="text-blue-400 hover:text-blue-300"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-        <p className="text-gray-400">
-          Complete tasks to earn USDT
-        </p>
-        
-        {/* Add Your Task Button */}
-        <div className="mt-4">
-          <Button
-            onClick={() => setShowContactPage(true)}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Your Task
-          </Button>
+      <div className="max-w-4xl mx-auto mb-8">
+        <div className="text-center py-6">
+          <div className="flex items-center justify-center mb-4">
+            <Trophy className="w-8 h-8 text-yellow-400 mr-3" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 bg-clip-text text-transparent">
+              Complete Tasks & Earn
+            </h1>
+          </div>
+          <p className="text-gray-300 text-lg">
+            Complete simple tasks to earn USDT instantly
+          </p>
+          
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-4 mt-6 max-w-md mx-auto">
+            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-600/30">
+              <div className="flex items-center justify-center mb-2">
+                <Coins className="w-5 h-5 text-yellow-400 mr-2" />
+                <span className="text-sm text-gray-400">Your Balance</span>
+              </div>
+              <p className="text-xl font-bold text-white">${userBalance.toFixed(3)}</p>
+            </div>
+            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-600/30">
+              <div className="flex items-center justify-center mb-2">
+                <Gift className="w-5 h-5 text-green-400 mr-2" />
+                <span className="text-sm text-gray-400">Available Tasks</span>
+              </div>
+              <p className="text-xl font-bold text-white">{tasks.length}</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30">
-          <CardContent className="p-4 text-center">
-            <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-            <p className="text-white font-bold text-lg">{completedTasks.length}</p>
-            <p className="text-gray-400 text-sm">Completed</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-r from-green-600/20 to-blue-600/20 border-green-500/30">
-          <CardContent className="p-4 text-center">
-            <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
-            <p className="text-white font-bold text-lg">${totalEarned.toFixed(3)}</p>
-            <p className="text-gray-400 text-sm">Earned</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-purple-500/30">
-          <CardContent className="p-4 text-center">
-            <Clock className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-            <p className="text-white font-bold text-lg">{availableTasks.length}</p>
-            <p className="text-gray-400 text-sm">Available</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Available Tasks */}
-      {availableTasks.length > 0 && (
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">Available Tasks</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {availableTasks.map((task) => (
-              <div
-                key={task.id}
-                className="group relative overflow-hidden bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-sm rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="relative p-6">
-                  <div className="flex items-start space-x-4">
-                    <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20">
-                      {getTaskIcon(task.task_type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="text-foreground font-semibold text-lg truncate">{task.title}</h3>
-                        <Badge variant="secondary" className="bg-primary/15 text-primary border border-primary/20 shrink-0">
-                          {getTaskTypeText(task.task_type)}
-                        </Badge>
-                      </div>
-                      
-                      {task.description && (
-                        <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{task.description}</p>
-                      )}
-                      
-                      <div className="flex items-center space-x-4 mb-3">
-                        <div className="flex items-center space-x-2">
-                          <DollarSign className="w-4 h-4 text-green-400" />
-                          <span className="text-green-400 font-bold text-lg">
-                            +${task.reward_amount.toFixed(3)}
-                          </span>
-                          <span className="text-muted-foreground text-sm">USDT</span>
-                        </div>
-                        
-                        {task.max_completions && (
-                          <div className="flex items-center space-x-2">
-                            <Users className="w-4 h-4 text-blue-400" />
-                            <span className="text-blue-400 text-sm">
-                              {task.current_completions}/{task.max_completions} completed
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {taskTimers[task.id] > 0 && (
-                        <div className="flex items-center space-x-2 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                          <Timer className="w-4 h-4 text-orange-400 animate-pulse" />
-                          <span className="text-orange-400 text-sm font-medium">
-                            Please wait {taskTimers[task.id]} seconds to claim reward
-                          </span>
-                        </div>
-                      )}
+      {/* Tasks Grid */}
+      <div className="max-w-4xl mx-auto">
+        {tasks.length === 0 ? (
+          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50 text-center p-8">
+            <CardContent className="pt-6">
+              <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No Tasks Available</h3>
+              <p className="text-gray-400">
+                All tasks completed! Check back later for new earning opportunities.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {tasks.map((task) => (
+              <Card key={task.id} className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50 hover:border-blue-500/50 transition-all duration-300 group">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <Badge variant="secondary" className="bg-blue-600/20 text-blue-400 border-blue-500/30">
+                      {task.task_type.toUpperCase()}
+                    </Badge>
+                    <div className="flex items-center text-green-400 font-bold">
+                      <Coins className="w-4 h-4 mr-1" />
+                      ${task.reward_amount.toFixed(3)}
                     </div>
                   </div>
-                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-3 pt-4 border-t border-border/50">
-                    <Button
-                      onClick={() => {
-                        // Store task start time
-                        localStorage.setItem(`task_start_${task.id}`, Date.now().toString());
-                        window.open(task.task_url, '_blank');
-                        if (!taskTimers[task.id]) {
-                          startTaskTimer(task.id);
-                        }
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="border-primary/50 text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300"
-                    >
-                      <ExternalLink className="w-4 h-4 mr-1" />
-                      Start Task
-                    </Button>
-                    <Button
-                      onClick={() => handleCompleteTask(task.id)}
-                      disabled={completingTask === task.id || taskTimers[task.id] > 0}
-                      className={`flex-1 sm:flex-none font-semibold transition-all duration-300 ${
-                        taskTimers[task.id] > 0 
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600' 
-                          : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg hover:shadow-green-500/25'
-                      }`}
-                      size="sm"
-                    >
-                      {completingTask === task.id ? (
+                  <CardTitle className="text-white text-lg leading-tight">
+                    {task.title}
+                  </CardTitle>
+                </CardHeader>
+                
+                <CardContent className="pt-0">
+                  <p className="text-gray-300 text-sm mb-4 line-clamp-2">
+                    {task.description}
+                  </p>
+                  
+                  {/* Progress indicator */}
+                  {task.max_completions && (
+                    <div className="mb-4">
+                      <div className="flex justify-between text-sm text-gray-400 mb-1">
+                        <span>Progress</span>
+                        <span>{task.current_completions}/{task.max_completions}</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+                          style={{ 
+                            width: `${Math.min(((task.current_completions || 0) / task.max_completions) * 100, 100)}%` 
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <Button
+                    onClick={() => handleTaskComplete(task)}
+                    disabled={completingTask === task.id}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 group-hover:scale-105"
+                  >
+                    {completingTask === task.id ? (
+                      <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      ) : taskTimers[task.id] > 0 ? (
-                        <>
-                          <Timer className="w-4 h-4 mr-2" />
-                          Claim in {taskTimers[task.id]}s
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Claim Reward
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                        Completing...
+                      </>
+                    ) : (
+                      <>
+                        Complete Task
+                        <ExternalLink className="w-4 h-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
             ))}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
 
-      {/* Completed Tasks */}
-      {completedTasks.length > 0 && (
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">Completed Tasks ({completedTasks.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {completedTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between p-3 bg-green-600/10 rounded-lg border border-green-600/30"
-              >
-                <div className="flex items-center space-x-3">
-                  {getTaskIcon(task.task_type)}
-                  <div>
-                    <h4 className="text-white font-medium">{task.title}</h4>
-                    <p className="text-gray-400 text-sm">
-                      {task.completion_date && new Date(task.completion_date).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-green-400 font-bold">
-                    +${task.reward_amount.toFixed(3)}
-                  </span>
-                  <CheckCircle className="w-5 h-5 text-green-400" />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {tasks.length === 0 && (
-        <Card className="bg-gray-800 border-gray-700">
-          <CardContent className="p-8 text-center">
-            <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-white text-lg font-medium mb-2">No Tasks Found</h3>
-            <p className="text-gray-400">
-              Admin will add new tasks soon
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Info Banner */}
+      <div className="max-w-4xl mx-auto mt-8">
+        <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 backdrop-blur-sm rounded-xl p-6 border border-indigo-500/30">
+          <div className="flex items-start space-x-4">
+            <div className="w-8 h-8 bg-indigo-500/20 rounded-full flex items-center justify-center mt-1">
+              <CheckCircle className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div>
+              <h3 className="text-white font-semibold mb-2">How it works</h3>
+              <ul className="text-gray-300 text-sm space-y-1">
+                <li>• Click "Complete Task" to open the task link</li>
+                <li>• Follow the instructions (like, subscribe, etc.)</li>
+                <li>• Return here and your reward will be credited automatically</li>
+                <li>• Each task can only be completed once per user</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
