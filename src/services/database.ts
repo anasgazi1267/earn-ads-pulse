@@ -69,26 +69,47 @@ export class DatabaseService {
     try {
       const today = new Date().toDateString();
       
+      console.log('🔍 Creating/updating user:', { 
+        telegramId: telegramUser.id, 
+        referredBy,
+        hasReferrer: !!referredBy 
+      });
+      
       // First check if user exists
       const existingUser = await this.getUserByTelegramId(telegramUser.id.toString());
       
       if (existingUser) {
-      // Check if existing user doesn't have a referrer but one is provided
-      if (referredBy && !existingUser.referred_by && referredBy !== telegramUser.id.toString()) {
-        console.log('Processing referral for returning user without referrer:', { userId: telegramUser.id, referrer: referredBy });
-        
-        // Update user first with referrer info
-        await supabase
-          .from('users')
-          .update({
-            referred_by: referredBy,
-            updated_at: new Date().toISOString()
-          })
-          .eq('telegram_id', telegramUser.id.toString());
-        
-        const referralSuccess = await this.processReferral(referredBy, telegramUser.id.toString());
-        console.log('Referral processing result for returning user:', referralSuccess);
-      }
+        console.log('👤 Existing user found:', {
+          id: existingUser.telegram_id,
+          hasReferrer: !!existingUser.referred_by,
+          currentReferrer: existingUser.referred_by
+        });
+
+        // Check if existing user doesn't have a referrer but one is provided
+        if (referredBy && !existingUser.referred_by && referredBy !== telegramUser.id.toString()) {
+          console.log('🎯 Processing referral for returning user without referrer:', { 
+            userId: telegramUser.id, 
+            referrer: referredBy 
+          });
+          
+          // Update user first with referrer info
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              referred_by: referredBy,
+              updated_at: new Date().toISOString()
+            })
+            .eq('telegram_id', telegramUser.id.toString());
+
+          if (updateError) {
+            console.error('❌ Error updating user with referrer:', updateError);
+          } else {
+            console.log('✅ User updated with referrer');
+            // Process the referral bonus
+            const referralSuccess = await this.processReferral(referredBy, telegramUser.id.toString());
+            console.log('💰 Referral processing result for returning user:', referralSuccess);
+          }
+        }
         
         // Update existing user with latest Telegram info
         const { data, error } = await supabase
@@ -105,10 +126,12 @@ export class DatabaseService {
           .single();
 
         if (error) throw error;
-        console.log('Updated existing user:', data);
+        console.log('✅ Updated existing user:', data);
         return data;
       } else {
         // Create new user with zero balance
+        console.log('🆕 Creating new user with referrer:', referredBy);
+        
         const userData = {
           telegram_id: telegramUser.id.toString(),
           username: telegramUser.username || null,
@@ -130,19 +153,26 @@ export class DatabaseService {
           .single();
 
         if (error) throw error;
-        console.log('Created new user:', data);
+        console.log('✅ Created new user:', data);
         
-        // Process referral if exists - CRITICAL FIX: Only for new users
+        // Process referral if exists - Only for new users
         if (referredBy && referredBy !== telegramUser.id.toString()) {
-          console.log('Processing referral for new user:', { newUser: telegramUser.id, referrer: referredBy });
-          const referralSuccess = await this.processReferral(referredBy, telegramUser.id.toString());
-          console.log('Referral processing result:', referralSuccess);
+          console.log('🎯 Processing referral for new user:', { 
+            newUser: telegramUser.id, 
+            referrer: referredBy 
+          });
+          
+          // Add a small delay to ensure user is fully created
+          setTimeout(async () => {
+            const referralSuccess = await this.processReferral(referredBy, telegramUser.id.toString());
+            console.log('💰 Referral processing result:', referralSuccess);
+          }, 1000);
         }
         
         return data;
       }
     } catch (error) {
-      console.error('Error creating/updating user:', error);
+      console.error('❌ Error creating/updating user:', error);
       return null;
     }
   }
@@ -410,10 +440,16 @@ export class DatabaseService {
     }
   }
 
-  // Fixed referral system
+  // Enhanced referral processing
   async processReferral(referrerTelegramId: string, newUserTelegramId: string): Promise<boolean> {
     try {
-      console.log(`Processing referral: ${referrerTelegramId} -> ${newUserTelegramId}`);
+      console.log(`🎯 Processing referral: ${referrerTelegramId} -> ${newUserTelegramId}`);
+      
+      // Validate referrer is not same as new user
+      if (referrerTelegramId === newUserTelegramId) {
+        console.log('❌ Self-referral not allowed');
+        return false;
+      }
       
       // Check if referrer exists
       const { data: referrer, error: referrerError } = await supabase
@@ -423,46 +459,49 @@ export class DatabaseService {
         .single();
 
       if (referrerError || !referrer) {
-        console.error('Referrer not found:', referrerError);
+        console.error('❌ Referrer not found:', referrerError);
         return false;
       }
 
-      // Check if new user already has a referrer
+      // Check if new user exists
       const { data: newUser, error: newUserError } = await supabase
         .from('users')
-        .select('referred_by')
+        .select('*')
         .eq('telegram_id', newUserTelegramId)
         .single();
 
       if (newUserError || !newUser) {
-        console.error('New user not found:', newUserError);
+        console.error('❌ New user not found:', newUserError);
         return false;
       }
 
-      if (newUser.referred_by) {
-        console.log('User already has a referrer');
+      // Check if referral already exists
+      const { data: existingReferral } = await supabase
+        .from('referrals')
+        .select('*')
+        .eq('referrer_telegram_id', referrerTelegramId)
+        .eq('referred_telegram_id', newUserTelegramId)
+        .single();
+
+      if (existingReferral) {
+        console.log('⚠️ Referral already exists');
         return false;
       }
 
-      // Update new user with referrer
-      const { error: updateUserError } = await supabase
-        .from('users')
-        .update({ 
-          referred_by: referrerTelegramId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('telegram_id', newUserTelegramId);
-
-      if (updateUserError) {
-        console.error('Error updating new user:', updateUserError);
-        return false;
-      }
-
-      // Increment referrer's count and give bonus
+      // Process the referral
       const referralBonus = 0.01; // $0.01 per referral
       const newReferralCount = (referrer.referral_count || 0) + 1;
       const newBalance = (referrer.balance || 0) + referralBonus;
 
+      console.log('💰 Applying referral bonus:', {
+        referrer: referrerTelegramId,
+        oldBalance: referrer.balance,
+        newBalance: newBalance,
+        oldReferralCount: referrer.referral_count,
+        newReferralCount: newReferralCount
+      });
+
+      // Update referrer's stats and balance
       const { error: updateReferrerError } = await supabase
         .from('users')
         .update({ 
@@ -473,11 +512,11 @@ export class DatabaseService {
         .eq('telegram_id', referrerTelegramId);
 
       if (updateReferrerError) {
-        console.error('Error updating referrer:', updateReferrerError);
+        console.error('❌ Error updating referrer:', updateReferrerError);
         return false;
       }
 
-      // Log the referral
+      // Log the referral in referrals table
       const { error: referralError } = await supabase
         .from('referrals')
         .insert({
@@ -487,16 +526,17 @@ export class DatabaseService {
         });
 
       if (referralError) {
-        console.error('Error logging referral:', referralError);
+        console.error('❌ Error logging referral:', referralError);
+        return false;
       }
 
       // Log activity
       await this.logActivity(referrerTelegramId, 'referral_bonus', referralBonus);
 
-      console.log(`Referral processed successfully: +${referralBonus} for ${referrerTelegramId}`);
+      console.log(`✅ Referral processed successfully: +$${referralBonus} for ${referrerTelegramId}`);
       return true;
     } catch (error) {
-      console.error('Error processing referral:', error);
+      console.error('❌ Error processing referral:', error);
       return false;
     }
   }
@@ -763,9 +803,11 @@ export class DatabaseService {
     }
   }
 
-  // Get referral statistics
+  // Get referral statistics with enhanced logging
   async getReferralStats(telegramId: string): Promise<{ count: number; earnings: number; referrals: any[] }> {
     try {
+      console.log('📊 Getting referral stats for:', telegramId);
+      
       const { data: referrals, error } = await supabase
         .from('referrals')
         .select('*')
@@ -773,16 +815,18 @@ export class DatabaseService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching referral stats:', error);
+        console.error('❌ Error fetching referral stats:', error);
         return { count: 0, earnings: 0, referrals: [] };
       }
 
       const count = referrals?.length || 0;
       const earnings = referrals?.reduce((sum, ref) => sum + (ref.earnings || 0), 0) || 0;
 
+      console.log('📈 Referral stats result:', { count, earnings, referralsLength: referrals?.length });
+
       return { count, earnings, referrals: referrals || [] };
     } catch (error) {
-      console.error('Error getting referral stats:', error);
+      console.error('❌ Error getting referral stats:', error);
       return { count: 0, earnings: 0, referrals: [] };
     }
   }

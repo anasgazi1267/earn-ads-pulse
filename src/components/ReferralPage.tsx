@@ -29,6 +29,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
+  // Improved referral link for Telegram Mini App
   const referralLink = `https://t.me/Ads_Usdt_earn_bot/FreeUsdt?startapp=ref_${userInfo?.id}`;
 
   useEffect(() => {
@@ -40,9 +41,10 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
       setLoading(true);
       try {
         const stats = await dbService.getReferralStats(userInfo.id.toString());
+        console.log('📊 Loaded referral stats:', stats);
         setReferralStats(stats);
       } catch (error) {
-        console.error('Error loading referral stats:', error);
+        console.error('❌ Error loading referral stats:', error);
       } finally {
         setLoading(false);
       }
@@ -54,7 +56,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
     await loadReferralStats();
     setRefreshing(false);
     toast({
-      title: "Refreshed!",
+      title: "🔄 Refreshed!",
       description: "Referral stats have been updated",
     });
   };
@@ -62,7 +64,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
   const copyReferralLink = () => {
     navigator.clipboard.writeText(referralLink);
     toast({
-      title: "Copied!",
+      title: "📋 Copied!",
       description: "Referral link copied to clipboard",
     });
   };
@@ -71,7 +73,7 @@ const ReferralPage: React.FC<ReferralPageProps> = ({ userInfo, userBalance, upda
     const shareText = `🚀 Join Ads by USDT Earn Bot!
 
 💰 Watch ads and earn real USDT
-🎯 Complete tasks for bonus rewards
+🎯 Complete tasks for bonus rewards  
 📱 Easy to use Telegram mini app
 🎁 Get $0.01 bonus when you join using my link!
 
@@ -89,7 +91,7 @@ Start earning today! 💎`;
       // Copy the full message to clipboard
       navigator.clipboard.writeText(shareText);
       toast({
-        title: "Message Copied!",
+        title: "📋 Message Copied!",
         description: "Complete referral message copied to clipboard",
       });
     }
@@ -111,7 +113,7 @@ Start earning today! 💎`;
       {/* Header */}
       <div className="text-center py-4">
         <div className="flex items-center justify-center space-x-2 mb-2">
-          <h1 className="text-2xl font-bold text-white">Referral Program</h1>
+          <h1 className="text-2xl font-bold text-white">🎯 Referral Program</h1>
           <Button
             onClick={refreshStats}
             disabled={refreshing}
@@ -149,7 +151,7 @@ Start earning today! 💎`;
       {/* Referral Link */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="text-white">Your Referral Link</CardTitle>
+          <CardTitle className="text-white">📎 Your Referral Link</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2 p-3 bg-gray-700 rounded-lg">
@@ -204,7 +206,7 @@ Start earning today! 💎`;
       {referralStats.referrals.length > 0 && (
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-white">Recent Referrals</CardTitle>
+            <CardTitle className="text-white">📋 Recent Referrals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {referralStats.referrals.slice(0, 10).map((referral: any, index: number) => (
@@ -223,7 +225,7 @@ Start earning today! 💎`;
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-green-400 font-bold">
-                    +${(referral.earnings || 0.10).toFixed(3)}
+                    +${(referral.earnings || 0.01).toFixed(3)}
                   </span>
                   <CheckCircle className="w-5 h-5 text-green-400" />
                 </div>

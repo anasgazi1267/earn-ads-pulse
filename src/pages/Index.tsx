@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
@@ -61,13 +60,77 @@ const Index = () => {
     }
   }, [userInfo?.id]);
 
+  const extractReferralFromTelegram = () => {
+    let referredBy = null;
+    
+    if (window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      
+      // Method 1: Check start_param from initDataUnsafe
+      const startParam = tg.initDataUnsafe?.start_param;
+      console.log('🔍 Telegram start_param:', startParam);
+      
+      if (startParam) {
+        // Handle different referral formats
+        if (startParam.startsWith('ref_')) {
+          referredBy = startParam.substring(4);
+          console.log('✅ Found referral (ref_ format):', referredBy);
+        } else if (startParam.startsWith('r_')) {
+          referredBy = startParam.substring(2);
+          console.log('✅ Found referral (r_ format):', referredBy);
+        } else if (startParam.match(/^\d+$/)) {
+          referredBy = startParam;
+          console.log('✅ Found referral (direct ID):', referredBy);
+        } else {
+          referredBy = startParam;
+          console.log('✅ Found referral (custom format):', referredBy);
+        }
+      }
+
+      // Method 2: Check URL hash for backup
+      if (!referredBy && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const refFromHash = hashParams.get('tgWebAppStartParam');
+        if (refFromHash && refFromHash.startsWith('ref_')) {
+          referredBy = refFromHash.substring(4);
+          console.log('✅ Found referral from hash:', referredBy);
+        }
+      }
+
+      // Method 3: Check initData directly
+      if (!referredBy && tg.initData) {
+        try {
+          const params = new URLSearchParams(tg.initData);
+          const startParamFromInitData = params.get('start_param');
+          if (startParamFromInitData && startParamFromInitData.startsWith('ref_')) {
+            referredBy = startParamFromInitData.substring(4);
+            console.log('✅ Found referral from initData:', referredBy);
+          }
+        } catch (error) {
+          console.log('Error parsing initData:', error);
+        }
+      }
+    }
+
+    // Fallback for testing/development
+    if (!referredBy) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refParam = urlParams.get('ref') || urlParams.get('start') || urlParams.get('referral');
+      if (refParam) {
+        referredBy = refParam.startsWith('ref_') ? refParam.substring(4) : refParam;
+        console.log('✅ Found referral from URL params:', referredBy);
+      }
+    }
+
+    return referredBy;
+  };
+
   const initializeApp = async () => {
     if (adminLoading) return;
 
     try {
       // Initialize Telegram Web App
       let telegramUser = null;
-      let referredBy = null;
       
       if (window.Telegram?.WebApp) {
         const tg = window.Telegram.WebApp;
@@ -76,29 +139,17 @@ const Index = () => {
         
         // Get user info from Telegram
         telegramUser = tg.initDataUnsafe?.user;
-        console.log('Telegram user data:', telegramUser);
-        
-        // Extract referral from start param (mini app format)
-        const startParam = tg.initDataUnsafe?.start_param;
-        console.log('Full Telegram WebApp data:', tg.initDataUnsafe);
-        console.log('Start param detected:', startParam);
-        
-        if (startParam && startParam.startsWith('ref_')) {
-          referredBy = startParam.substring(4);
-          console.log('✅ Mini app referral detected from Telegram:', referredBy);
-        }
-        
-        // Also check for web app format (backup)
-        const webAppStartParam = tg.initDataUnsafe?.start_param;
-        if (!referredBy && webAppStartParam) {
-          referredBy = webAppStartParam;
-          console.log('Web app referral detected:', referredBy);
-        }
+        console.log('📱 Telegram user data:', telegramUser);
+        console.log('📱 Full Telegram WebApp data:', tg.initDataUnsafe);
       }
+      
+      // Extract referral information
+      const referredBy = extractReferralFromTelegram();
+      console.log('🎯 Final referral detected:', referredBy);
       
       // Fallback for testing without Telegram (development mode)
       if (!telegramUser) {
-        console.log('No Telegram user found, using test user');
+        console.log('🧪 No Telegram user found, using test user');
         const testUserId = Math.floor(Math.random() * 1000000);
         telegramUser = {
           id: testUserId,
@@ -106,32 +157,28 @@ const Index = () => {
           first_name: 'Test',
           last_name: 'User'
         };
-        
-        // Check for referral in URL for testing
-        const urlParams = new URLSearchParams(window.location.search);
-        const refParam = urlParams.get('ref');
-        if (refParam) {
-          referredBy = refParam;
-          console.log('Test referral detected from URL:', referredBy);
-        }
       }
       
       if (telegramUser) {
         setUserInfo(telegramUser);
         
         // Create or update user in database with referral handling
-        console.log('Creating/updating user with referral:', { userId: telegramUser.id, referredBy });
+        console.log('💾 Creating/updating user with referral:', { 
+          userId: telegramUser.id, 
+          referredBy: referredBy 
+        });
+        
         const dbUser = await dbService.createOrUpdateUser(telegramUser, referredBy);
         
         if (dbUser) {
-          console.log('Database user data:', dbUser);
+          console.log('✅ Database user data:', dbUser);
           setUserBalance(dbUser.balance);
           setReferralCount(dbUser.referral_count || 0);
           setAdsWatched(dbUser.ads_watched_today || 0);
           setHasJoinedChannels(dbUser.channels_joined || !isChannelVerificationEnabled);
           setWithdrawalEnabled((dbUser.referral_count || 0) >= 5);
           
-          console.log('User state updated:', {
+          console.log('📊 User state updated:', {
             balance: dbUser.balance,
             referralCount: dbUser.referral_count,
             adsWatched: dbUser.ads_watched_today,
@@ -140,7 +187,7 @@ const Index = () => {
         }
       }
     } catch (error) {
-      console.error('Error initializing app:', error);
+      console.error('❌ Error initializing app:', error);
     }
     
     setIsLoading(false);
