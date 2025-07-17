@@ -1,22 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Coins, ExternalLink, CheckCircle, Clock, Trophy, Gift } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { taskService } from '@/services/taskService';
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  reward_amount: number;
-  task_type: string;
-  task_url: string;
-  max_completions?: number;
-  current_completions?: number;
-}
+import { taskService, Task } from '@/services/taskService';
 
 interface TasksPageProps {
   userInfo: any;
@@ -200,7 +188,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
                 
                 <CardContent className="pt-0">
                   <p className="text-gray-300 text-sm mb-4 line-clamp-2">
-                    {task.description}
+                    {task.description || 'Complete this task to earn rewards'}
                   </p>
                   
                   {/* Progress indicator */}
