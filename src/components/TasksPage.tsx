@@ -41,12 +41,12 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
     try {
       setLoading(true);
       const [availableTasks, userCompletedTasks] = await Promise.all([
-        taskService.getAvailableTasks(),
+        taskService.getActiveTasks(),
         taskService.getUserCompletedTasks(userInfo.id.toString())
       ]);
 
       // Create set of completed task IDs for quick lookup
-      const completedTaskIds = new Set(userCompletedTasks.map(task => task.task_id));
+      const completedTaskIds = new Set(userCompletedTasks.map((task: any) => task.task_id));
       setCompletedTasks(completedTaskIds);
 
       // Filter out tasks that are completed by user or reached max completions
@@ -83,9 +83,8 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
       
       // Complete the task
       const success = await taskService.completeTask(
-        task.id,
         userInfo.id.toString(),
-        task.reward_amount
+        task.id
       );
 
       if (success) {
