@@ -8,13 +8,17 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  task_type: 'telegram_join' | 'telegram_channel' | 'youtube_subscribe' | 'website_visit' | 'social_follow';
+  task_type: string;
   task_url: string;
   reward_amount: number;
   is_active: boolean;
   max_completions?: number;
   total_budget?: number;
   current_completions: number;
+  user_created?: boolean;
+  created_by_user?: string | null;
+  admin_fee?: number;
+  status?: string;
   created_at: string;
   updated_at: string;
 }

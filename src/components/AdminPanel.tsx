@@ -7,16 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, Settings, DollarSign, Activity, Target, Trash2, UserX } from 'lucide-react';
+import { Users, Settings, DollarSign, Activity, Target, Trash2, UserX, Plus, Edit, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { dbService, User, WithdrawalRequest } from '@/services/database';
+import { taskService, Task } from '@/services/taskService';
 import ChannelManagement from './ChannelManagement';
 
 const AdminPanel = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [adminSettings, setAdminSettings] = useState<Record<string, string>>({});
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [deposits, setDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalBalance: 0,
@@ -62,15 +67,19 @@ const AdminPanel = () => {
     try {
       setLoading(true);
       
-      const [usersData, withdrawalsData, settingsData] = await Promise.all([
+      const [usersData, withdrawalsData, settingsData, tasksData, depositsData] = await Promise.all([
         dbService.getAllUsers(),
         dbService.getWithdrawalRequests(),
-        dbService.getAdminSettings()
+        dbService.getAdminSettings(),
+        taskService.getAllTasks(),
+        dbService.getAllDeposits()
       ]);
 
       setUsers(usersData);
       setWithdrawalRequests(withdrawalsData);
       setAdminSettings(settingsData);
+      setTasks(tasksData);
+      setDeposits(depositsData);
     } catch (error) {
       console.error('Error loading admin data:', error);
       toast({
@@ -80,6 +89,74 @@ const AdminPanel = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      const success = await taskService.createTask(taskData);
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Task created successfully",
+        });
+        setShowTaskForm(false);
+        loadAdminData();
+      } else {
+        throw new Error('Task creation failed');
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create task",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    try {
+      const success = await taskService.updateTask(taskId, updates);
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Task updated successfully",
+        });
+        setEditingTask(null);
+        loadAdminData();
+      } else {
+        throw new Error('Task update failed');
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update task",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleApproveDeposit = async (depositId: string) => {
+    try {
+      const success = await dbService.updateDepositStatus(depositId, 'completed');
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Deposit approved successfully",
+        });
+        loadAdminData();
+      } else {
+        throw new Error('Deposit approval failed');
+      }
+    } catch (error) {
+      console.error('Error approving deposit:', error);
+      toast({
+        title: "Error",
+        description: "Failed to approve deposit",
+        variant: "destructive"
+      });
     }
   };
 
@@ -252,6 +329,8 @@ const AdminPanel = () => {
           <TabsList className="bg-gray-800 border-gray-700">
             <TabsTrigger value="users" className="data-[state=active]:bg-gray-700">Users</TabsTrigger>
             <TabsTrigger value="channels" className="data-[state=active]:bg-gray-700">Channels</TabsTrigger>
+            <TabsTrigger value="tasks" className="data-[state=active]:bg-gray-700">Tasks</TabsTrigger>
+            <TabsTrigger value="deposits" className="data-[state=active]:bg-gray-700">Deposits</TabsTrigger>
             <TabsTrigger value="withdrawals" className="data-[state=active]:bg-gray-700">Withdrawals</TabsTrigger>
             <TabsTrigger value="settings" className="data-[state=active]:bg-gray-700">Settings</TabsTrigger>
           </TabsList>
@@ -333,6 +412,249 @@ const AdminPanel = () => {
           {/* Channels Tab */}
           <TabsContent value="channels">
             <ChannelManagement />
+          </TabsContent>
+
+          {/* Tasks Tab */}
+          <TabsContent value="tasks">
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-white">Task Management</CardTitle>
+                  <Button 
+                    onClick={() => setShowTaskForm(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Task
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {showTaskForm && (
+                  <div className="mb-6 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-white">Title</Label>
+                        <Input 
+                          placeholder="Task title"
+                          className="bg-gray-700 border-gray-600 text-white"
+                          id="task-title"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-white">Type</Label>
+                        <Input 
+                          placeholder="e.g., social, survey, follow"
+                          className="bg-gray-700 border-gray-600 text-white"
+                          id="task-type"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-white">URL</Label>
+                        <Input 
+                          placeholder="Task URL"
+                          className="bg-gray-700 border-gray-600 text-white"
+                          id="task-url"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-white">Reward (USDT)</Label>
+                        <Input 
+                          type="number"
+                          step="0.001"
+                          placeholder="0.010"
+                          className="bg-gray-700 border-gray-600 text-white"
+                          id="task-reward"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label className="text-white">Description</Label>
+                        <Input 
+                          placeholder="Task description"
+                          className="bg-gray-700 border-gray-600 text-white"
+                          id="task-description"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-white">Max Completions</Label>
+                        <Input 
+                          type="number"
+                          placeholder="100"
+                          className="bg-gray-700 border-gray-600 text-white"
+                          id="task-max"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-white">Total Budget (USDT)</Label>
+                        <Input 
+                          type="number"
+                          step="0.001"
+                          placeholder="1.000"
+                          className="bg-gray-700 border-gray-600 text-white"
+                          id="task-budget"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        onClick={() => {
+                          const title = (document.getElementById('task-title') as HTMLInputElement).value;
+                          const type = (document.getElementById('task-type') as HTMLInputElement).value;
+                          const url = (document.getElementById('task-url') as HTMLInputElement).value;
+                          const reward = parseFloat((document.getElementById('task-reward') as HTMLInputElement).value);
+                          const description = (document.getElementById('task-description') as HTMLInputElement).value;
+                          const maxCompletions = parseInt((document.getElementById('task-max') as HTMLInputElement).value);
+                          const totalBudget = parseFloat((document.getElementById('task-budget') as HTMLInputElement).value);
+                          
+                          if (title && type && url && reward) {
+                            handleCreateTask({
+                              title,
+                              task_type: type,
+                              task_url: url,
+                              reward_amount: reward,
+                              description: description || null,
+                              max_completions: maxCompletions || null,
+                              total_budget: totalBudget || null,
+                              is_active: true,
+                              current_completions: 0,
+                              user_created: false,
+                              created_by_user: null,
+                              admin_fee: 0.01,
+                              status: 'active'
+                            });
+                          }
+                        }}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Create Task
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => setShowTaskForm(false)}
+                        className="border-gray-600 text-gray-300"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="space-y-4">
+                  {tasks.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No tasks found</p>
+                  ) : (
+                    tasks.map((task) => (
+                      <div key={task.id} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-white font-medium">{task.title}</h3>
+                            <p className="text-gray-400 text-sm">{task.description}</p>
+                            <div className="flex items-center gap-4 mt-2 text-sm">
+                              <span className="text-green-400">Reward: ${task.reward_amount}</span>
+                              <span className="text-blue-400">Type: {task.task_type}</span>
+                              <span className="text-purple-400">
+                                Completed: {task.current_completions || 0}/{task.max_completions || '∞'}
+                              </span>
+                              {task.user_created && (
+                                <Badge variant="secondary">User Created</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={task.is_active ? "default" : "secondary"}>
+                              {task.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open(task.task_url, '_blank')}
+                              className="border-blue-600 text-blue-400"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const updates = { is_active: !task.is_active };
+                                handleUpdateTask(task.id, updates);
+                              }}
+                              className="border-yellow-600 text-yellow-400"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Deposits Tab */}
+          <TabsContent value="deposits">
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">Deposit Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {deposits.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">No deposits found</p>
+                  ) : (
+                    deposits.map((deposit) => (
+                      <div key={deposit.id} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-medium">
+                              {deposit.users?.first_name} {deposit.users?.last_name}
+                            </p>
+                            <p className="text-gray-400 text-sm">@{deposit.users?.username}</p>
+                            <p className="text-gray-400 text-sm">Amount: ৳{deposit.amount} BDT</p>
+                            <p className="text-gray-400 text-sm">Method: {deposit.deposit_method}</p>
+                            {deposit.transaction_id && (
+                              <p className="text-gray-400 text-sm">TXN: {deposit.transaction_id}</p>
+                            )}
+                            <p className="text-gray-500 text-xs">
+                              {new Date(deposit.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={
+                              deposit.status === 'completed' ? 'default' :
+                              deposit.status === 'rejected' ? 'destructive' : 'secondary'
+                            }>
+                              {deposit.status || 'pending'}
+                            </Badge>
+                            {deposit.status === 'pending' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApproveDeposit(deposit.id)}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => dbService.updateDepositStatus(deposit.id, 'rejected')}
+                                  className="border-red-600 text-red-400"
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Withdrawals Tab */}
@@ -467,6 +789,68 @@ const AdminPanel = () => {
                     onBlur={(e) => handleUpdateSetting('min_withdrawal_amount', e.target.value)}
                   />
                   <p className="text-gray-400 text-sm mt-1">Minimum amount for withdrawal requests</p>
+                </div>
+
+                {/* Bkash Exchange Rate Setting */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Bkash Exchange Rate (BDT per 1 USD)</Label>
+                  <Input
+                    type="number"
+                    defaultValue={adminSettings.bkash_rate || '120'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('bkash_rate', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">How many BDT equals 1 USD for Bkash deposits</p>
+                </div>
+
+                {/* Minimum Deposit Setting */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Minimum Deposit Amount (BDT)</Label>
+                  <Input
+                    type="number"
+                    defaultValue={adminSettings.min_deposit_amount || '120'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('min_deposit_amount', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Minimum deposit amount in BDT</p>
+                </div>
+
+                {/* Conversion Settings */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Minimum Conversion Amount (USDT)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    defaultValue={adminSettings.min_conversion_amount || '1.0'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('min_conversion_amount', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Minimum earning balance to convert to deposit balance</p>
+                </div>
+
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">Conversion Fee (USDT)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    defaultValue={adminSettings.conversion_fee || '0.1'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('conversion_fee', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Fee charged for converting earning to deposit balance</p>
+                </div>
+
+                {/* User Task Admin Fee */}
+                <div className="p-4 bg-gray-700/50 rounded-lg">
+                  <Label className="text-white font-medium mb-2 block">User Task Admin Fee (USDT)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    defaultValue={adminSettings.user_task_admin_fee || '0.01'}
+                    className="bg-gray-700 border-gray-600 text-white max-w-xs"
+                    onBlur={(e) => handleUpdateSetting('user_task_admin_fee', e.target.value)}
+                  />
+                  <p className="text-gray-400 text-sm mt-1">Admin fee earned per user-uploaded task completion</p>
                 </div>
               </CardContent>
             </Card>

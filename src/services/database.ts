@@ -7,6 +7,7 @@ export interface User {
   first_name?: string;
   last_name?: string;
   balance?: number;
+  deposit_balance?: number;
   referral_count?: number;
   referred_by?: string;
   channels_joined?: boolean;
@@ -828,6 +829,146 @@ export class DatabaseService {
     } catch (error) {
       console.error('❌ Error getting referral stats:', error);
       return { count: 0, earnings: 0, referrals: [] };
+    }
+  }
+
+  // Deposit management methods
+  async getAllDeposits(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_deposits')
+        .select(`
+          *,
+          users!inner(username, first_name, last_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting deposits:', error);
+      return [];
+    }
+  }
+
+  async updateDepositStatus(depositId: string, status: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('user_deposits')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', depositId);
+
+      if (error) throw error;
+      
+      // If approved, update user's deposit balance
+      if (status === 'completed') {
+        const { data: deposit } = await supabase
+          .from('user_deposits')
+          .select('*')
+          .eq('id', depositId)
+          .single();
+
+        if (deposit) {
+          const user = await this.getUserByTelegramId(deposit.user_id);
+          if (user) {
+            const newDepositBalance = (user.deposit_balance || 0) + deposit.amount;
+            await supabase
+              .from('users')
+              .update({ 
+                deposit_balance: newDepositBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('telegram_id', deposit.user_id);
+          }
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating deposit status:', error);
+      return false;
+    }
+  }
+
+  async createDeposit(userId: string, amount: number, method: string, transactionId?: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('user_deposits')
+        .insert({
+          user_id: userId,
+          amount,
+          deposit_method: method,
+          transaction_id: transactionId,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error creating deposit:', error);
+      return false;
+    }
+  }
+
+  async updateUserDepositBalance(telegramId: string, newDepositBalance: number): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ 
+          deposit_balance: newDepositBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('telegram_id', telegramId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error updating deposit balance:', error);
+      return false;
+    }
+  }
+
+  async convertEarningToDeposit(userId: string, amount: number): Promise<boolean> {
+    try {
+      const user = await this.getUserByTelegramId(userId);
+      if (!user) return false;
+
+      const fee = 0.1; // $0.1 conversion fee
+      const convertAmount = amount - fee;
+
+      if (user.balance < amount) return false;
+
+      // Update balances
+      const newBalance = user.balance - amount;
+      const newDepositBalance = (user.deposit_balance || 0) + convertAmount;
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          balance: newBalance,
+          deposit_balance: newDepositBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('telegram_id', userId);
+
+      if (error) throw error;
+
+      // Log the conversion
+      await supabase
+        .from('balance_conversions')
+        .insert({
+          user_id: userId,
+          amount_converted: amount,
+          conversion_fee: fee
+        });
+
+      return true;
+    } catch (error) {
+      console.error('Error converting balance:', error);
+      return false;
     }
   }
 }

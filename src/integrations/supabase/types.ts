@@ -38,6 +38,30 @@ export type Database = {
         }
         Relationships: []
       }
+      balance_conversions: {
+        Row: {
+          amount_converted: number
+          conversion_fee: number
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount_converted: number
+          conversion_fee?: number
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount_converted?: number
+          conversion_fee?: number
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       channels: {
         Row: {
           created_at: string
@@ -103,46 +127,58 @@ export type Database = {
       }
       tasks: {
         Row: {
+          admin_fee: number | null
           created_at: string
+          created_by_user: string | null
           current_completions: number | null
           description: string | null
           id: string
           is_active: boolean
           max_completions: number | null
           reward_amount: number
+          status: string | null
           task_type: string
           task_url: string
           title: string
           total_budget: number | null
           updated_at: string
+          user_created: boolean | null
         }
         Insert: {
+          admin_fee?: number | null
           created_at?: string
+          created_by_user?: string | null
           current_completions?: number | null
           description?: string | null
           id?: string
           is_active?: boolean
           max_completions?: number | null
           reward_amount?: number
+          status?: string | null
           task_type: string
           task_url: string
           title: string
           total_budget?: number | null
           updated_at?: string
+          user_created?: boolean | null
         }
         Update: {
+          admin_fee?: number | null
           created_at?: string
+          created_by_user?: string | null
           current_completions?: number | null
           description?: string | null
           id?: string
           is_active?: boolean
           max_completions?: number | null
           reward_amount?: number
+          status?: string | null
           task_type?: string
           task_url?: string
           title?: string
           total_budget?: number | null
           updated_at?: string
+          user_created?: boolean | null
         }
         Relationships: []
       }
@@ -170,6 +206,39 @@ export type Database = {
           created_at?: string | null
           id?: string
           telegram_id?: string
+        }
+        Relationships: []
+      }
+      user_deposits: {
+        Row: {
+          amount: number
+          created_at: string
+          deposit_method: string
+          id: string
+          status: string | null
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          deposit_method?: string
+          id?: string
+          status?: string | null
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          deposit_method?: string
+          id?: string
+          status?: string | null
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -212,6 +281,7 @@ export type Database = {
           channel_join_date: string | null
           channels_joined: boolean | null
           created_at: string | null
+          deposit_balance: number | null
           first_name: string | null
           id: string
           last_activity_date: string | null
@@ -229,6 +299,7 @@ export type Database = {
           channel_join_date?: string | null
           channels_joined?: boolean | null
           created_at?: string | null
+          deposit_balance?: number | null
           first_name?: string | null
           id?: string
           last_activity_date?: string | null
@@ -246,6 +317,7 @@ export type Database = {
           channel_join_date?: string | null
           channels_joined?: boolean | null
           created_at?: string | null
+          deposit_balance?: number | null
           first_name?: string | null
           id?: string
           last_activity_date?: string | null
