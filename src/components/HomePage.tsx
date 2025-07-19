@@ -53,6 +53,13 @@ const HomePage: React.FC<HomePageProps> = ({
       icon: <Users className="w-6 h-6" />,
       color: "bg-purple-600 hover:bg-purple-700",
       action: () => navigate('/referral')
+    },
+    {
+      title: "Deposit & Upload",
+      description: "Deposit to upload tasks",
+      icon: <TrendingUp className="w-6 h-6" />,
+      color: "bg-orange-600 hover:bg-orange-700",
+      action: () => navigate('/deposit')
     }
   ];
 

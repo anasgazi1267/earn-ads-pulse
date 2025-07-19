@@ -10,6 +10,9 @@ import ReferralPage from '../components/ReferralPage';
 import WithdrawPage from '../components/WithdrawPage';
 import JoinChannelsPage from '../components/JoinChannelsPage';
 import TasksPage from '../components/TasksPage';
+import DepositPage from '../components/DepositPage';
+import UserTaskUploadPage from '../components/UserTaskUploadPage';
+import AutomaticAdOverlay from '../components/AutomaticAdOverlay';
 import BottomNavigation from '../components/BottomNavigation';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -30,6 +33,7 @@ const Index = () => {
   const [withdrawalEnabled, setWithdrawalEnabled] = useState(false);
   const [userBalance, setUserBalance] = useState(0);
   const [adsWatched, setAdsWatched] = useState(0);
+  const [showAutoAd, setShowAutoAd] = useState(false);
   const { isChannelVerificationEnabled, loading: adminLoading } = useAdmin();
 
   useEffect(() => {
@@ -238,6 +242,30 @@ const Index = () => {
     }
   }, [userInfo, isLoading]);
 
+  // Automatic ad system - shows every 25 seconds
+  useEffect(() => {
+    if (!isLoading && userInfo && hasJoinedChannels) {
+      const adInterval = setInterval(() => {
+        setShowAutoAd(true);
+      }, 25000); // 25 seconds
+
+      return () => clearInterval(adInterval);
+    }
+  }, [isLoading, userInfo, hasJoinedChannels]);
+
+  const handleAutoAdComplete = async () => {
+    setShowAutoAd(false);
+    if (userInfo) {
+      const newBalance = userBalance + 0.001;
+      await updateUserBalance(newBalance);
+      updateAdsWatched(adsWatched + 1);
+      
+      // Update database
+      await dbService.incrementUserAdsWatched(userInfo.id.toString());
+      await dbService.logActivity(userInfo.id.toString(), 'ad_watched', 0.001);
+    }
+  };
+
   if (isLoading || adminLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
@@ -305,11 +333,28 @@ const Index = () => {
               userInfo={userInfo}
             />
           } />
+          <Route path="/deposit" element={
+            <DepositPage 
+              userInfo={userInfo}
+              onBack={() => window.history.back()}
+            />
+          } />
+          <Route path="/upload-task" element={
+            <UserTaskUploadPage 
+              userInfo={userInfo}
+              onBack={() => window.history.back()}
+            />
+          } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
       <BottomNavigation />
       <Toaster />
+      
+      {/* Automatic Ad Overlay */}
+      {showAutoAd && (
+        <AutomaticAdOverlay onAdComplete={handleAutoAdComplete} />
+      )}
     </div>
   );
 };
