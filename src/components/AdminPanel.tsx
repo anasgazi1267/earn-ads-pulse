@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { dbService, User, WithdrawalRequest } from '@/services/database';
 import { taskService, Task } from '@/services/taskService';
 import ChannelManagement from './ChannelManagement';
-import AdminDepositMethods from './AdminDepositMethods';
 
 const AdminPanel = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -333,7 +332,6 @@ const AdminPanel = () => {
             <TabsTrigger value="tasks" className="data-[state=active]:bg-gray-700">Tasks</TabsTrigger>
             <TabsTrigger value="deposits" className="data-[state=active]:bg-gray-700">Deposits</TabsTrigger>
             <TabsTrigger value="withdrawals" className="data-[state=active]:bg-gray-700">Withdrawals</TabsTrigger>
-            <TabsTrigger value="methods" className="data-[state=active]:bg-gray-700">Payment Methods</TabsTrigger>
             <TabsTrigger value="settings" className="data-[state=active]:bg-gray-700">Settings</TabsTrigger>
           </TabsList>
 
@@ -716,11 +714,6 @@ const AdminPanel = () => {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Payment Methods Tab */}
-          <TabsContent value="methods">
-            <AdminDepositMethods />
           </TabsContent>
 
           {/* Settings Tab */}

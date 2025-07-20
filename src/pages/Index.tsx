@@ -34,7 +34,6 @@ const Index = () => {
   const [userBalance, setUserBalance] = useState(0);
   const [adsWatched, setAdsWatched] = useState(0);
   const [showAutoAd, setShowAutoAd] = useState(false);
-  const [currentAdType, setCurrentAdType] = useState<'automatic' | 'adsgram'>('automatic');
   const { isChannelVerificationEnabled, loading: adminLoading } = useAdmin();
 
   useEffect(() => {
@@ -243,14 +242,12 @@ const Index = () => {
     }
   }, [userInfo, isLoading]);
 
-  // Automatic ad system - shows every 20 seconds alternating between platforms
+  // Automatic ad system - shows every 25 seconds
   useEffect(() => {
     if (!isLoading && userInfo && hasJoinedChannels) {
       const adInterval = setInterval(() => {
-        // Alternate between automatic and adsgram ads
-        setCurrentAdType(prev => prev === 'automatic' ? 'adsgram' : 'automatic');
         setShowAutoAd(true);
-      }, 20000); // 20 seconds
+      }, 25000); // 25 seconds
 
       return () => clearInterval(adInterval);
     }
@@ -356,10 +353,7 @@ const Index = () => {
       
       {/* Automatic Ad Overlay */}
       {showAutoAd && (
-        <AutomaticAdOverlay 
-          onAdComplete={handleAutoAdComplete} 
-          adType={currentAdType}
-        />
+        <AutomaticAdOverlay onAdComplete={handleAutoAdComplete} />
       )}
     </div>
   );
