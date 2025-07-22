@@ -71,7 +71,7 @@ const config = {
 3. Configure the Mini App URL to your deployed app
 
 ## Admin Features
-- Admin Telegram ID: 7390932497
+- Admin Telegram ID: 
 - Approve/reject withdrawal requests
 - Modify earning rates and limits
 - View user statistics
