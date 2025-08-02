@@ -101,6 +101,54 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_methods: {
+        Row: {
+          admin_id: string
+          created_at: string | null
+          display_name: string
+          exchange_rate: number | null
+          id: string
+          instructions: string | null
+          is_active: boolean | null
+          max_amount: number | null
+          min_amount: number | null
+          name: string
+          platform: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string | null
+          display_name: string
+          exchange_rate?: number | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          max_amount?: number | null
+          min_amount?: number | null
+          name: string
+          platform: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string | null
+          display_name?: string
+          exchange_rate?: number | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          max_amount?: number | null
+          min_amount?: number | null
+          name?: string
+          platform?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       referrals: {
         Row: {
           created_at: string | null
@@ -212,6 +260,7 @@ export type Database = {
       user_deposits: {
         Row: {
           amount: number
+          converted_from_earnings: boolean | null
           created_at: string
           deposit_method: string
           id: string
@@ -222,6 +271,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          converted_from_earnings?: boolean | null
           created_at?: string
           deposit_method?: string
           id?: string
@@ -232,6 +282,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          converted_from_earnings?: boolean | null
           created_at?: string
           deposit_method?: string
           id?: string
@@ -239,6 +290,42 @@ export type Database = {
           transaction_id?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_device_tracking: {
+        Row: {
+          created_at: string | null
+          device_fingerprint: string | null
+          id: string
+          ip_address: string
+          is_blocked: boolean | null
+          last_seen: string | null
+          telegram_id: string
+          updated_at: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_fingerprint?: string | null
+          id?: string
+          ip_address: string
+          is_blocked?: boolean | null
+          last_seen?: string | null
+          telegram_id: string
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_fingerprint?: string | null
+          id?: string
+          ip_address?: string
+          is_blocked?: boolean | null
+          last_seen?: string | null
+          telegram_id?: string
+          updated_at?: string | null
+          user_agent?: string | null
         }
         Relationships: []
       }
