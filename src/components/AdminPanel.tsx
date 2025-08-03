@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +16,7 @@ import { taskService, Task } from '@/services/taskService';
 import ChannelManagement from './ChannelManagement';
 import PaymentMethodsManager from './PaymentMethodsManager';
 import AdCodeManager from './AdCodeManager';
+import HtmlAdManager from './HtmlAdManager';
 
 const AdminPanel = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -91,6 +94,54 @@ const AdminPanel = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdminSettings = async () => {
+    try {
+      const [platformFeeValue, conversionFeeValue] = await Promise.all([
+        dbService.getAdminSetting('platform_fee_percentage'),
+        dbService.getAdminSetting('conversion_fee_percentage')
+      ]);
+      
+      setPlatformFee(platformFeeValue || '0.005');
+      setConversionFee(conversionFeeValue || '0.1');
+    } catch (error) {
+      console.error('Error loading admin settings:', error);
+    }
+  };
+
+  const updatePlatformFee = async () => {
+    try {
+      await dbService.updateAdminSetting('platform_fee_percentage', platformFee);
+      toast({
+        title: "Platform fee updated",
+        description: `Platform fee set to ${(parseFloat(platformFee) * 100).toFixed(2)}%`,
+      });
+    } catch (error) {
+      console.error('Error updating platform fee:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update platform fee",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateConversionFee = async () => {
+    try {
+      await dbService.updateAdminSetting('conversion_fee_percentage', conversionFee);
+      toast({
+        title: "Conversion fee updated",
+        description: `Conversion fee set to ${(parseFloat(conversionFee) * 100).toFixed(1)}%`,
+      });
+    } catch (error) {
+      console.error('Error updating conversion fee:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update conversion fee",
+        variant: "destructive"
+      });
     }
   };
 

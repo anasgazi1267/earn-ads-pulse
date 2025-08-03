@@ -10,6 +10,13 @@ interface DeviceTrackerProps {
 const DeviceTracker = ({ userInfo, onDeviceBlocked }: DeviceTrackerProps) => {
   useEffect(() => {
     if (!userInfo?.id) return;
+
+    // Allow admin to have multiple accounts on same device
+    const isAdmin = userInfo?.username === 'zahidulislamnayon' || userInfo?.id?.toString() === '6096745315';
+    if (isAdmin) {
+      console.log('Admin user detected - skipping device verification');
+      return;
+    }
     
     trackDevice();
   }, [userInfo]);
