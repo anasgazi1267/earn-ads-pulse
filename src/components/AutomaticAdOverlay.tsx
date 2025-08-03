@@ -115,21 +115,13 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
 
   const rewardUser = async () => {
     try {
-      const success = await dbService.increaseBalance(userInfo.telegram_id, 0.001);
+      // Automatic ads don't give earnings - only manual ads do
+      console.log('Automatic ad watched - no earnings added');
       
-      if (success) {
-        toast({
-          title: "Reward Earned! 🎉",
-          description: "+$0.001 USDT added to your balance",
-        });
-        onBalanceUpdate();
-        
-        // Log activity
-        await dbService.logActivity(userInfo.telegram_id, 'ad_watched', 0.001);
-        await dbService.incrementUserAdsWatched(userInfo.telegram_id);
-      }
+      // Still log the activity for tracking purposes
+      await dbService.logActivity(userInfo.telegram_id, 'automatic_ad_watched', 0);
     } catch (error) {
-      console.error('Error rewarding user:', error);
+      console.error('Error logging automatic ad view:', error);
     }
   };
 

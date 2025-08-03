@@ -348,6 +348,22 @@ export class DatabaseService {
     }
   }
 
+  async getAdminSetting(key: string): Promise<string> {
+    try {
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .select('setting_value')
+        .eq('setting_key', key)
+        .single();
+
+      if (error) throw error;
+      return data?.setting_value || '';
+    } catch (error) {
+      console.error('Error getting admin setting:', error);
+      return '';
+    }
+  }
+
   async updateAdminSetting(key: string, value: string): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -362,6 +378,80 @@ export class DatabaseService {
       return !error;
     } catch (error) {
       console.error('Error updating admin setting:', error);
+      return false;
+    }
+  }
+
+  // Payment methods
+  async getPaymentMethods(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_name');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting payment methods:', error);
+      return [];
+    }
+  }
+
+  async createDepositRequest(depositData: any): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('user_deposits')
+        .insert(depositData);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error creating deposit request:', error);
+      return false;
+    }
+  }
+
+  async convertEarningsToDeposit(userId: string, amount: number): Promise<boolean> {
+    try {
+      const user = await this.getUserByTelegramId(userId);
+      if (!user) return false;
+
+      const settings = await this.getAdminSettings();
+      const feePercentage = parseFloat(settings.conversion_fee_percentage || '0.1');
+      const feeAmount = amount * feePercentage;
+      const convertAmount = amount - feeAmount;
+
+      if (user.balance < amount) return false;
+
+      // Update balances
+      const newBalance = user.balance - amount;
+      const newDepositBalance = (user.deposit_balance || 0) + convertAmount;
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          balance: newBalance,
+          deposit_balance: newDepositBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('telegram_id', userId);
+
+      if (error) throw error;
+
+      // Log the conversion
+      await supabase
+        .from('balance_conversions')
+        .insert({
+          user_id: userId,
+          amount_converted: amount,
+          conversion_fee: feeAmount
+        });
+
+      return true;
+    } catch (error) {
+      console.error('Error converting balance:', error);
       return false;
     }
   }
