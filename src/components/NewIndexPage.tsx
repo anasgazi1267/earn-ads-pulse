@@ -299,7 +299,11 @@ const NewIndexPage = () => {
           />
         )}
         {currentPage === 'tasks' && (
-          <TasksPage />
+          <TasksPage 
+            userInfo={userInfo}
+            userBalance={userBalance}
+            updateUserBalance={loadUserInfo}
+          />
         )}
         {currentPage === 'referral' && (
           <ReferralPage 
@@ -317,11 +321,7 @@ const NewIndexPage = () => {
           />
         )}
         {currentPage === 'spin' && (
-          <SpinPage 
-            userInfo={userInfo}
-            userBalance={userBalance}
-            updateUserBalance={loadUserInfo}
-          />
+          <SpinPage />
         )}
         {currentPage === 'ad-viewer' && (
           <AdViewerPage 
