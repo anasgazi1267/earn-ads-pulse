@@ -355,7 +355,10 @@ const NewIndexPage = () => {
 
         {/* Bottom Navigation */}
         {currentPage !== 'admin' && userInfo && !['deposit', 'task-upload'].includes(currentPage) && (
-          <BottomNavigation />
+          <BottomNavigation 
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+          />
         )}
       </div>
       <Toaster />
