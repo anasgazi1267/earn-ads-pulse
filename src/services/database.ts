@@ -1061,6 +1061,34 @@ export class DatabaseService {
       return false;
     }
   }
+
+  async getDeviceTrackingData() {
+    const { data, error } = await supabase
+      .from('user_device_tracking')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching device tracking data:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async toggleDeviceBlocking(telegramId: string, isBlocked: boolean) {
+    const { error } = await supabase
+      .from('user_device_tracking')
+      .update({ is_blocked: isBlocked })
+      .eq('telegram_id', telegramId);
+
+    if (error) {
+      console.error('Error toggling device blocking:', error);
+      throw error;
+    }
+
+    return true;
+  }
 }
 
 export const dbService = new DatabaseService();

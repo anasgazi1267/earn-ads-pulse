@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { BarChart3, Users, ListTodo, CreditCard, Monitor, Settings } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { BarChart3, Users, ListTodo, CreditCard, Monitor, Settings, Shield, Code, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { dbService, User, WithdrawalRequest } from '@/services/database';
 import { taskService, Task } from '@/services/taskService';
@@ -25,11 +26,16 @@ const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [platformFee, setPlatformFee] = useState('0.005');
   const [conversionFee, setConversionFee] = useState('0.1');
+  const [deviceVerificationEnabled, setDeviceVerificationEnabled] = useState(true);
+  const [monetizationCode, setMonetizationCode] = useState('');
+  const [deviceTrackingData, setDeviceTrackingData] = useState<any[]>([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalBalance: 0,
     pendingWithdrawals: 0,
-    totalReferrals: 0
+    totalReferrals: 0,
+    totalDevices: 0,
+    multipleAccountAttempts: 0
   });
   const { toast } = useToast();
 
@@ -42,12 +48,13 @@ const AdminPanel = () => {
     try {
       setLoading(true);
       
-      const [usersData, withdrawalsData, settingsData, tasksData, depositsData] = await Promise.all([
+      const [usersData, withdrawalsData, settingsData, tasksData, depositsData, deviceData] = await Promise.all([
         dbService.getAllUsers(),
         dbService.getWithdrawalRequests(),
         dbService.getAdminSettings(),
         taskService.getAllTasks(),
-        dbService.getAllDeposits()
+        dbService.getAllDeposits(),
+        dbService.getDeviceTrackingData()
       ]);
 
       setUsers(usersData);
@@ -55,6 +62,11 @@ const AdminPanel = () => {
       setAdminSettings(settingsData);
       setTasks(tasksData);
       setDeposits(depositsData);
+      setDeviceTrackingData(deviceData);
+
+      // Load device verification and monetization settings
+      setDeviceVerificationEnabled(settingsData.device_verification_enabled === 'true');
+      setMonetizationCode(settingsData.monetization_code || '');
 
       // Calculate stats
       const totalBalance = usersData.reduce((sum, user) => sum + (user.balance || 0), 0);
@@ -62,12 +74,17 @@ const AdminPanel = () => {
       const pendingWithdrawals = withdrawalsData
         .filter(req => req.status === 'pending')
         .reduce((sum, req) => sum + req.amount, 0);
+      
+      const totalDevices = deviceData.length;
+      const multipleAccountAttempts = deviceData.filter(device => device.total_accounts_attempted > 1).length;
 
       setStats({
         totalUsers: usersData.length,
         totalBalance,
         totalReferrals,
-        pendingWithdrawals
+        pendingWithdrawals,
+        totalDevices,
+        multipleAccountAttempts
       });
     } catch (error) {
       console.error('Error loading admin data:', error);
@@ -83,13 +100,17 @@ const AdminPanel = () => {
 
   const loadAdminSettings = async () => {
     try {
-      const [platformFeeValue, conversionFeeValue] = await Promise.all([
+      const [platformFeeValue, conversionFeeValue, deviceVerifyValue, monetizationValue] = await Promise.all([
         dbService.getAdminSetting('platform_fee_percentage'),
-        dbService.getAdminSetting('conversion_fee_percentage')
+        dbService.getAdminSetting('conversion_fee_percentage'),
+        dbService.getAdminSetting('device_verification_enabled'),
+        dbService.getAdminSetting('monetization_code')
       ]);
       
       setPlatformFee(platformFeeValue || '0.005');
       setConversionFee(conversionFeeValue || '0.1');
+      setDeviceVerificationEnabled(deviceVerifyValue === 'true');
+      setMonetizationCode(monetizationValue || '');
     } catch (error) {
       console.error('Error loading admin settings:', error);
     }
@@ -226,10 +247,12 @@ const AdminPanel = () => {
           {[
             { id: 'overview', label: 'Overview', icon: BarChart3 },
             { id: 'users', label: 'Users', icon: Users },
+            { id: 'devices', label: 'Devices', icon: Shield },
             { id: 'tasks', label: 'Tasks', icon: ListTodo },
             { id: 'payments', label: 'Payments', icon: CreditCard },
             { id: 'ads', label: 'Ads', icon: Monitor },
-            { id: 'htmlads', label: 'HTML Ads', icon: Monitor },
+            { id: 'htmlads', label: 'HTML Ads', icon: Code },
+            { id: 'monetization', label: 'Monetization', icon: Activity },
             { id: 'settings', label: 'Settings', icon: Settings },
           ].map((tab) => {
             const IconComponent = tab.icon;
@@ -338,6 +361,183 @@ const AdminPanel = () => {
               <p className="text-gray-400">Task management interface will be shown here</p>
             </CardContent>
           </Card>
+        )}
+
+        {activeTab === 'devices' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white">Device Management</h2>
+              <div className="flex items-center space-x-3 bg-gray-800/50 p-3 rounded-lg">
+                <Label className="text-gray-300">Device Verification</Label>
+                <Switch
+                  checked={deviceVerificationEnabled}
+                  onCheckedChange={async (checked) => {
+                    setDeviceVerificationEnabled(checked);
+                    await dbService.updateAdminSetting('device_verification_enabled', checked.toString());
+                    toast({
+                      title: checked ? "Device verification enabled" : "Device verification disabled",
+                      description: checked 
+                        ? "Users are now limited to one account per device"
+                        : "Multiple accounts per device are now allowed"
+                    });
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card className="bg-gray-800/50 border-gray-700/50">
+                <CardContent className="p-4">
+                  <div className="text-center">
+                    <Shield className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+                    <p className="text-gray-400 text-sm">Total Devices</p>
+                    <p className="text-2xl font-bold text-white">{stats.totalDevices}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-800/50 border-gray-700/50">
+                <CardContent className="p-4">
+                  <div className="text-center">
+                    <Users className="w-8 h-8 text-orange-500 mx-auto mb-2" />
+                    <p className="text-gray-400 text-sm">Multiple Attempts</p>
+                    <p className="text-2xl font-bold text-white">{stats.multipleAccountAttempts}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-800/50 border-gray-700/50">
+                <CardContent className="p-4">
+                  <div className="text-center">
+                    <Activity className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                    <p className="text-gray-400 text-sm">Verification Status</p>
+                    <Badge variant={deviceVerificationEnabled ? "default" : "secondary"}>
+                      {deviceVerificationEnabled ? "Enabled" : "Disabled"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="bg-gray-800/50 border-gray-700/50">
+              <CardHeader>
+                <CardTitle className="text-white">Device Tracking Data</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-700">
+                        <th className="text-left py-3 px-4 text-gray-300">Device IP</th>
+                        <th className="text-left py-3 px-4 text-gray-300">First Account</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Attempts</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Last Seen</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deviceTrackingData.map((device) => (
+                        <tr key={device.id} className="border-b border-gray-700/50">
+                          <td className="py-3 px-4 text-white font-mono text-xs">
+                            {device.ip_address.substring(0, 12)}...
+                          </td>
+                          <td className="py-3 px-4 text-white">
+                            {device.first_account_telegram_id}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant={device.total_accounts_attempted > 1 ? "destructive" : "default"}>
+                              {device.total_accounts_attempted}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-gray-400 text-xs">
+                            {new Date(device.last_seen).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant={device.is_blocked ? "destructive" : "default"}>
+                              {device.is_blocked ? "Blocked" : "Active"}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Button
+                              size="sm"
+                              variant={device.is_blocked ? "outline" : "destructive"}
+                              onClick={async () => {
+                                await dbService.toggleDeviceBlocking(device.telegram_id, !device.is_blocked);
+                                loadStats();
+                                toast({
+                                  title: device.is_blocked ? "Device unblocked" : "Device blocked",
+                                  description: `Device ${device.is_blocked ? "unblocked" : "blocked"} successfully`
+                                });
+                              }}
+                            >
+                              {device.is_blocked ? "Unblock" : "Block"}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'monetization' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-white">Monetization Settings</h2>
+            
+            <Card className="bg-gray-800/50 border-gray-700/50">
+              <CardHeader>
+                <CardTitle className="text-white">External Monetization Code</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-gray-300">HTML/JavaScript Code</Label>
+                  <Textarea
+                    value={monetizationCode}
+                    onChange={(e) => setMonetizationCode(e.target.value)}
+                    placeholder="Enter your AdSense, Google Ads, or other monetization code here..."
+                    className="bg-gray-700/50 border-gray-600 text-white mt-2 min-h-[200px]"
+                  />
+                  <p className="text-gray-400 text-sm mt-2">
+                    This code will be injected into all pages. Use for AdSense, Google Ads, analytics, etc.
+                  </p>
+                </div>
+                <Button
+                  onClick={async () => {
+                    await dbService.updateAdminSetting('monetization_code', monetizationCode);
+                    toast({
+                      title: "Monetization code updated",
+                      description: "The code will be active on all pages"
+                    });
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Save Monetization Code
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-800/50 border-gray-700/50">
+              <CardHeader>
+                <CardTitle className="text-white">Revenue Analytics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+                    <h3 className="text-green-400 font-semibold">Platform Fees</h3>
+                    <p className="text-2xl font-bold text-white">$0.00</p>
+                    <p className="text-gray-400 text-sm">From task platform fees</p>
+                  </div>
+                  <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+                    <h3 className="text-blue-400 font-semibold">Conversion Fees</h3>
+                    <p className="text-2xl font-bold text-white">$0.00</p>
+                    <p className="text-gray-400 text-sm">From balance conversions</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {activeTab === 'payments' && <PaymentMethodsManager />}

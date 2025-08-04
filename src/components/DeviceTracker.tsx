@@ -53,13 +53,25 @@ const DeviceTracker = ({ userInfo, onDeviceBlocked }: DeviceTrackerProps) => {
 
   const trackDevice = async () => {
     try {
+      // Check if device verification is enabled
+      const { data: settings } = await supabase
+        .from('admin_settings')
+        .select('setting_value')
+        .eq('setting_key', 'device_verification_enabled')
+        .single();
+
+      if (settings?.setting_value === 'false') {
+        console.log('Device verification disabled - skipping check');
+        return;
+      }
+
       const deviceFingerprint = getDeviceFingerprint();
       const ipAddress = await getClientIP();
       
-      // Check if this IP is already used by another user
+      // Check if this device has any existing accounts
       const { data: existingDevices, error: checkError } = await supabase
         .from('user_device_tracking')
-        .select('telegram_id, is_blocked')
+        .select('telegram_id, first_account_telegram_id, is_blocked, total_accounts_attempted')
         .eq('ip_address', ipAddress);
 
       if (checkError) {
@@ -67,31 +79,57 @@ const DeviceTracker = ({ userInfo, onDeviceBlocked }: DeviceTrackerProps) => {
         return;
       }
 
-      // If IP exists and belongs to different user, block access
       if (existingDevices && existingDevices.length > 0) {
         const existingDevice = existingDevices[0];
-        if (existingDevice.telegram_id !== userInfo.id.toString()) {
+        
+        // Check if device is blocked
+        if (existingDevice.is_blocked) {
           toast({
-            title: "Device Restriction",
-            description: "This device is already registered to another account. One device per account allowed.",
+            title: "অ্যাকাউন্ট ব্লক",
+            description: "আপনার ডিভাইস এডমিন দ্বারা ব্লক করা হয়েছে।",
             variant: "destructive"
           });
           onDeviceBlocked();
           return;
         }
-        
-        if (existingDevice.is_blocked) {
+
+        // If this is not the first account registered on this device
+        if (existingDevice.first_account_telegram_id && 
+            existingDevice.first_account_telegram_id !== userInfo.id.toString()) {
+          
+          // Update attempt count
+          await supabase
+            .from('user_device_tracking')
+            .update({ 
+              total_accounts_attempted: (existingDevice.total_accounts_attempted || 1) + 1,
+              last_seen: new Date().toISOString()
+            })
+            .eq('ip_address', ipAddress);
+
           toast({
-            title: "Account Blocked",
-            description: "Your device has been blocked by admin.",
+            title: "একাউন্ট সীমাবদ্ধতা",
+            description: "এই ডিভাইসে আপনার আগে থেকেই একটি অ্যাকাউন্ট রয়েছে। প্রথম অ্যাকাউন্টটি ব্যবহার করুন।",
             variant: "destructive"
           });
           onDeviceBlocked();
+          return;
+        }
+
+        // If this is the first account, allow access
+        if (existingDevice.first_account_telegram_id === userInfo.id.toString()) {
+          await supabase
+            .from('user_device_tracking')
+            .update({ 
+              last_seen: new Date().toISOString(),
+              user_agent: navigator.userAgent,
+              device_fingerprint: deviceFingerprint
+            })
+            .eq('ip_address', ipAddress);
           return;
         }
       }
 
-      // Update or insert device tracking
+      // This is a new device, register the first account
       const { error: upsertError } = await supabase
         .from('user_device_tracking')
         .upsert({
@@ -99,6 +137,8 @@ const DeviceTracker = ({ userInfo, onDeviceBlocked }: DeviceTrackerProps) => {
           ip_address: ipAddress,
           device_fingerprint: deviceFingerprint,
           user_agent: navigator.userAgent,
+          first_account_telegram_id: userInfo.id.toString(),
+          total_accounts_attempted: 1,
           last_seen: new Date().toISOString()
         }, {
           onConflict: 'ip_address'

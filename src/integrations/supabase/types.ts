@@ -297,33 +297,39 @@ export type Database = {
         Row: {
           created_at: string | null
           device_fingerprint: string | null
+          first_account_telegram_id: string | null
           id: string
           ip_address: string
           is_blocked: boolean | null
           last_seen: string | null
           telegram_id: string
+          total_accounts_attempted: number | null
           updated_at: string | null
           user_agent: string | null
         }
         Insert: {
           created_at?: string | null
           device_fingerprint?: string | null
+          first_account_telegram_id?: string | null
           id?: string
           ip_address: string
           is_blocked?: boolean | null
           last_seen?: string | null
           telegram_id: string
+          total_accounts_attempted?: number | null
           updated_at?: string | null
           user_agent?: string | null
         }
         Update: {
           created_at?: string | null
           device_fingerprint?: string | null
+          first_account_telegram_id?: string | null
           id?: string
           ip_address?: string
           is_blocked?: boolean | null
           last_seen?: string | null
           telegram_id?: string
+          total_accounts_attempted?: number | null
           updated_at?: string | null
           user_agent?: string | null
         }
