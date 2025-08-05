@@ -131,6 +131,20 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
               Complete Tasks & Earn
             </h1>
           </div>
+          
+          {/* Add Your Task Button */}
+          <div className="mb-6">
+            <Button
+              onClick={() => window.open('/task-upload', '_blank')}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300"
+            >
+              <Trophy className="w-5 h-5 mr-2" />
+              Add Your Task
+            </Button>
+            <p className="text-gray-400 text-sm mt-2">
+              Upload your own tasks and earn when others complete them
+            </p>
+          </div>
           <p className="text-gray-300 text-lg">
             Complete simple tasks to earn USDT instantly
           </p>

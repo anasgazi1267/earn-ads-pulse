@@ -22,6 +22,7 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
   const [adInterval, setAdInterval] = useState(20);
   const [adHtml, setAdHtml] = useState('');
   const [adsgramReady, setAdsgramReady] = useState(false);
+  const [monetagCode, setMonetagCode] = useState('');
 
   useEffect(() => {
     loadAdSettings();
@@ -38,6 +39,7 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
       const interval = parseInt(settings.ad_interval_seconds || '20');
       setAdInterval(interval);
       setAdHtml(settings.popup_ad_code || '');
+      setMonetagCode(settings.monetization_code || '');
     } catch (error) {
       console.error('Error loading ad settings:', error);
     }
@@ -147,14 +149,16 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
             {isMonetag ? 'Monetag' : 'Adsgram'} Advertisement
           </h2>
           <p className="text-gray-300 text-sm">
-            Watch this ad to earn $0.001 USDT
+            Watch this automatic ad - no earnings
           </p>
         </div>
 
         <div className="bg-gray-700 rounded-lg p-4 mb-6 min-h-[200px] flex items-center justify-center">
           {isMonetag ? (
             <div className="text-center">
-              {adHtml ? (
+              {monetagCode ? (
+                <div dangerouslySetInnerHTML={{ __html: monetagCode }} />
+              ) : adHtml ? (
                 <div dangerouslySetInnerHTML={{ __html: adHtml }} />
               ) : (
                 <div className="text-white">

@@ -12,7 +12,7 @@ import AdViewerPage from '@/components/AdViewerPage';
 import AdminPanel from '@/components/AdminPanel';
 import BottomNavigation from '@/components/BottomNavigation';
 import DepositPage from '@/components/DepositPage';
-import EnhancedTaskUpload from '@/components/EnhancedTaskUpload';
+import UserTaskUploadPage from '@/components/UserTaskUploadPage';
 import AutomaticAdOverlay from '@/components/AutomaticAdOverlay';
 import DeviceTracker from '@/components/DeviceTracker';
 
@@ -339,9 +339,9 @@ const NewIndexPage = () => {
           />
         )}
         {currentPage === 'task-upload' && (
-          <EnhancedTaskUpload 
+          <UserTaskUploadPage 
             userInfo={userInfo}
-            onBack={() => setCurrentPage('home')}
+            onBack={() => setCurrentPage('tasks')} 
           />
         )}
 

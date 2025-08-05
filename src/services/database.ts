@@ -252,6 +252,32 @@ export class DatabaseService {
     }
   }
 
+  async updateUserDepositBalance(telegramId: string, amount: number): Promise<boolean> {
+    try {
+      // Get current balance
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('deposit_balance')
+        .eq('telegram_id', telegramId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentBalance = user.deposit_balance || 0;
+      const newBalance = currentBalance + amount;
+
+      const { error } = await supabase
+        .from('users')
+        .update({ deposit_balance: newBalance })
+        .eq('telegram_id', telegramId);
+
+      return !error;
+    } catch (error) {
+      console.error('Error updating user deposit balance:', error);
+      return false;
+    }
+  }
+
   async updateChannelJoinStatus(telegramId: string, joined: boolean): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -1003,23 +1029,6 @@ export class DatabaseService {
     }
   }
 
-  async updateUserDepositBalance(telegramId: string, newDepositBalance: number): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ 
-          deposit_balance: newDepositBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('telegram_id', telegramId);
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error updating deposit balance:', error);
-      return false;
-    }
-  }
 
   async convertEarningToDeposit(userId: string, amount: number): Promise<boolean> {
     try {
