@@ -318,22 +318,6 @@ export class TaskService {
       return [];
     }
   }
-  // Get user's created tasks
-  async getUserCreatedTasks(userId: string): Promise<Task[]> {
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('created_by_user', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching user created tasks:', error);
-      return [];
-    }
-  }
 }
 
 export const taskService = new TaskService();

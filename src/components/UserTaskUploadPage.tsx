@@ -3,91 +3,55 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Upload, DollarSign, Trophy, CheckCircle, Clock, Eye } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Upload, Wallet, DollarSign, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { taskService } from '@/services/taskService';
 import { dbService } from '@/services/database';
-
-interface UserTask {
-  id: string;
-  title: string;
-  description?: string;
-  task_type: string;
-  task_url: string;
-  reward_amount: number;
-  max_completions?: number;
-  total_budget: number;
-  current_completions: number;
-  status: string;
-  created_at: string;
-}
+import { taskService } from '@/services/taskService';
 
 interface UserTaskUploadPageProps {
   userInfo: any;
   onBack: () => void;
 }
 
-const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBack }) => {
+const UserTaskUploadPage = ({ userInfo, onBack }: UserTaskUploadPageProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [taskType, setTaskType] = useState('');
   const [taskUrl, setTaskUrl] = useState('');
   const [rewardAmount, setRewardAmount] = useState('');
   const [maxCompletions, setMaxCompletions] = useState('');
-  const [totalBudget, setTotalBudget] = useState('');
   const [loading, setLoading] = useState(false);
-  const [userTasks, setUserTasks] = useState<UserTask[]>([]);
-  const [activeTab, setActiveTab] = useState<'upload' | 'manage'>('upload');
-  const [adminFee, setAdminFee] = useState(0.1);
+  const [adminSettings, setAdminSettings] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
-    loadAdminFee();
-    if (activeTab === 'manage') {
-      loadUserTasks();
-    }
-  }, [activeTab]);
+    loadSettings();
+  }, []);
 
-  const loadAdminFee = async () => {
+  const loadSettings = async () => {
     try {
-      const fee = await dbService.getAdminSetting('task_admin_fee');
-      setAdminFee(parseFloat(fee) || 0.1);
+      const settings = await dbService.getAdminSettings();
+      setAdminSettings(settings);
     } catch (error) {
-      console.error('Error loading admin fee:', error);
+      console.error('Error loading settings:', error);
     }
   };
 
-  const loadUserTasks = async () => {
-    try {
-      const tasks = await taskService.getUserCreatedTasks(userInfo.telegram_id);
-      const userTasksData = tasks.map(task => ({
-        ...task,
-        description: task.description || '',
-        total_budget: task.total_budget || 0,
-        status: task.status || 'pending'
-      }));
-      setUserTasks(userTasksData);
-    } catch (error) {
-      console.error('Error loading user tasks:', error);
-    }
-  };
-
+  const adminFee = parseFloat(adminSettings.user_task_admin_fee || '0.01');
+  
   const calculateTotalCost = () => {
     const reward = parseFloat(rewardAmount) || 0;
     const completions = parseInt(maxCompletions) || 1;
     const taskCost = reward * completions;
-    const adminFeeAmount = taskCost * adminFee;
-    return taskCost + adminFeeAmount;
+    const totalAdminFee = adminFee * completions;
+    return taskCost + totalAdminFee;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!title || !description || !taskType || !taskUrl || !rewardAmount || !maxCompletions) {
+  const handleSubmit = async () => {
+    if (!title || !taskType || !taskUrl || !rewardAmount || !maxCompletions) {
       toast({
-        title: "Missing information",
+        title: "Error",
         description: "Please fill in all required fields",
         variant: "destructive"
       });
@@ -96,31 +60,21 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
 
     const reward = parseFloat(rewardAmount);
     const completions = parseInt(maxCompletions);
-    const budget = parseFloat(totalBudget) || calculateTotalCost();
+    const totalCost = calculateTotalCost();
 
     if (reward <= 0 || completions <= 0) {
       toast({
-        title: "Invalid values",
+        title: "Error",
         description: "Reward amount and max completions must be greater than 0",
         variant: "destructive"
       });
       return;
     }
 
-    if (budget < calculateTotalCost()) {
+    if (totalCost > (userInfo.deposit_balance || 0)) {
       toast({
-        title: "Insufficient budget",
-        description: `Total cost is $${calculateTotalCost().toFixed(3)} (including ${(adminFee * 100)}% admin fee)`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if user has enough deposit balance
-    if ((userInfo.deposit_balance || 0) < budget) {
-      toast({
-        title: "Insufficient deposit balance",
-        description: `You need $${budget.toFixed(3)} in deposit balance. Current: $${(userInfo.deposit_balance || 0).toFixed(3)}`,
+        title: "Error",
+        description: "Insufficient deposit balance. Please deposit more funds.",
         variant: "destructive"
       });
       return;
@@ -128,31 +82,33 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
 
     setLoading(true);
     try {
+      // Create the task
       const taskData = {
         title,
-        description,
+        description: description || null,
         task_type: taskType,
         task_url: taskUrl,
         reward_amount: reward,
         max_completions: completions,
-        total_budget: budget,
+        total_budget: totalCost,
+        is_active: true,
         current_completions: 0,
         user_created: true,
         created_by_user: userInfo.telegram_id,
-        admin_fee: budget * adminFee,
-        status: 'pending',
-        is_active: false
+        admin_fee: adminFee,
+        status: 'active'
       };
 
       const success = await taskService.createTask(taskData);
-
+      
       if (success) {
-        // Deduct budget from user's deposit balance
-        await dbService.updateUserDepositBalance(userInfo.telegram_id, -budget);
+        // Deduct from user's deposit balance
+        const newDepositBalance = (userInfo.deposit_balance || 0) - totalCost;
+        await dbService.updateUserDepositBalance(userInfo.telegram_id, newDepositBalance);
         
         toast({
-          title: "Task submitted!",
-          description: "Your task is under review and will be activated once approved",
+          title: "Success",
+          description: `Task uploaded successfully! Cost: $${totalCost.toFixed(3)} USDT`,
         });
         
         // Reset form
@@ -162,16 +118,19 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
         setTaskUrl('');
         setRewardAmount('');
         setMaxCompletions('');
-        setTotalBudget('');
-        setActiveTab('manage');
+        
+        // Refresh page to update balance
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
       } else {
-        throw new Error('Failed to create task');
+        throw new Error('Task creation failed');
       }
     } catch (error) {
       console.error('Error creating task:', error);
       toast({
         title: "Error",
-        description: "Failed to submit task",
+        description: "Failed to upload task",
         variant: "destructive"
       });
     } finally {
@@ -179,302 +138,169 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
     }
   };
 
+  const totalCost = calculateTotalCost();
+  const canAfford = totalCost <= (userInfo.deposit_balance || 0);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-900 p-4">
+      <div className="max-w-md mx-auto">
         {/* Header */}
-        <div className="flex items-center mb-6">
+        <div className="flex items-center gap-4 mb-6">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={onBack}
-            className="text-white hover:bg-white/10 mr-4"
+            className="text-white hover:text-gray-300"
           >
-            <ArrowLeft className="w-5 h-5" />
+            ← Back
           </Button>
-          <h1 className="text-2xl font-bold text-white">Task Management</h1>
+          <h1 className="text-2xl font-bold text-white">Upload Task</h1>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex space-x-4 mb-6">
-          <Button
-            variant={activeTab === 'upload' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('upload')}
-            className={activeTab === 'upload' 
-              ? 'bg-blue-600 text-white' 
-              : 'border-gray-600 text-gray-300 hover:bg-gray-700'
-            }
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Task
-          </Button>
-          <Button
-            variant={activeTab === 'manage' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('manage')}
-            className={activeTab === 'manage' 
-              ? 'bg-blue-600 text-white' 
-              : 'border-gray-600 text-gray-300 hover:bg-gray-700'
-            }
-          >
-            <Trophy className="w-4 h-4 mr-2" />
-            My Tasks
-          </Button>
-        </div>
+        {/* Balance Info */}
+        <Card className="bg-gray-800 border-gray-700 mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Wallet className="w-5 h-5 text-blue-500 mr-2" />
+                <span className="text-gray-300">Deposit Balance:</span>
+              </div>
+              <span className="text-xl font-bold text-white">
+                ${(userInfo.deposit_balance || 0).toFixed(3)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
-        {activeTab === 'upload' ? (
-          /* Upload Task Form */
-          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center">
-                <Upload className="w-5 h-5 mr-2" />
-                Create New Task
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label htmlFor="title" className="text-gray-300">
-                      Task Title *
-                    </Label>
-                    <Input
-                      id="title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Enter task title"
-                      className="bg-gray-700/50 border-gray-600 text-white"
-                    />
+        {/* Task Upload Form */}
+        <Card className="bg-gray-800 border-gray-700 mb-6">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center">
+              <Upload className="w-5 h-5 mr-2" />
+              Create New Task
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="text-white">Task Title *</Label>
+              <Input
+                type="text"
+                placeholder="Enter task title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+
+            <div>
+              <Label className="text-white">Description</Label>
+              <Input
+                type="text"
+                placeholder="Task description (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+
+            <div>
+              <Label className="text-white">Task Type *</Label>
+              <Input
+                type="text"
+                placeholder="e.g., social, survey, follow, like"
+                value={taskType}
+                onChange={(e) => setTaskType(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+
+            <div>
+              <Label className="text-white">Task URL *</Label>
+              <Input
+                type="url"
+                placeholder="https://example.com"
+                value={taskUrl}
+                onChange={(e) => setTaskUrl(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+
+            <div>
+              <Label className="text-white">Reward per Completion (USDT) *</Label>
+              <Input
+                type="number"
+                step="0.001"
+                placeholder="0.010"
+                value={rewardAmount}
+                onChange={(e) => setRewardAmount(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+
+            <div>
+              <Label className="text-white">Max Completions *</Label>
+              <Input
+                type="number"
+                placeholder="100"
+                value={maxCompletions}
+                onChange={(e) => setMaxCompletions(e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+
+            {/* Cost Breakdown */}
+            {rewardAmount && maxCompletions && (
+              <div className="bg-gray-700/50 rounded-lg p-3 border border-gray-600">
+                <h4 className="text-white font-medium mb-2">Cost Breakdown:</h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-gray-300">
+                    <span>Task Rewards:</span>
+                    <span>${(parseFloat(rewardAmount) * parseInt(maxCompletions)).toFixed(3)}</span>
                   </div>
-
-                  <div>
-                    <Label htmlFor="taskType" className="text-gray-300">
-                      Task Type *
-                    </Label>
-                    <Select value={taskType} onValueChange={setTaskType}>
-                      <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
-                        <SelectValue placeholder="Select task type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="social">Social Media</SelectItem>
-                        <SelectItem value="survey">Survey</SelectItem>
-                        <SelectItem value="review">Review</SelectItem>
-                        <SelectItem value="signup">Sign Up</SelectItem>
-                        <SelectItem value="download">App Download</SelectItem>
-                        <SelectItem value="visit">Website Visit</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex justify-between text-gray-300">
+                    <span>Admin Fee ({parseInt(maxCompletions)} × ${adminFee}):</span>
+                    <span>${(adminFee * parseInt(maxCompletions)).toFixed(3)}</span>
                   </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="description" className="text-gray-300">
-                    Task Description *
-                  </Label>
-                  <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe what users need to do..."
-                    className="bg-gray-700/50 border-gray-600 text-white"
-                    rows={4}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="taskUrl" className="text-gray-300">
-                    Task URL *
-                  </Label>
-                  <Input
-                    id="taskUrl"
-                    value={taskUrl}
-                    onChange={(e) => setTaskUrl(e.target.value)}
-                    placeholder="https://example.com"
-                    className="bg-gray-700/50 border-gray-600 text-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="rewardAmount" className="text-gray-300">
-                      Reward per Completion ($) *
-                    </Label>
-                    <Input
-                      id="rewardAmount"
-                      type="number"
-                      step="0.001"
-                      value={rewardAmount}
-                      onChange={(e) => setRewardAmount(e.target.value)}
-                      placeholder="0.010"
-                      className="bg-gray-700/50 border-gray-600 text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="maxCompletions" className="text-gray-300">
-                      Max Completions *
-                    </Label>
-                    <Input
-                      id="maxCompletions"
-                      type="number"
-                      value={maxCompletions}
-                      onChange={(e) => setMaxCompletions(e.target.value)}
-                      placeholder="100"
-                      className="bg-gray-700/50 border-gray-600 text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-gray-300">
-                      Total Cost (including {(adminFee * 100)}% fee)
-                    </Label>
-                    <div className="bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2">
-                      <span className="text-white font-semibold">
-                        ${calculateTotalCost().toFixed(3)}
-                      </span>
-                    </div>
+                  <div className="flex justify-between text-white font-medium border-t border-gray-600 pt-1">
+                    <span>Total Cost:</span>
+                    <span>${totalCost.toFixed(3)}</span>
                   </div>
                 </div>
-
-                <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
-                  <h3 className="text-blue-400 font-semibold mb-2">Cost Breakdown:</h3>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between text-gray-300">
-                      <span>Task Rewards:</span>
-                      <span>${((parseFloat(rewardAmount) || 0) * (parseInt(maxCompletions) || 1)).toFixed(3)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-300">
-                      <span>Admin Fee ({(adminFee * 100)}%):</span>
-                      <span>${(calculateTotalCost() - ((parseFloat(rewardAmount) || 0) * (parseInt(maxCompletions) || 1))).toFixed(3)}</span>
-                    </div>
-                    <div className="flex justify-between text-white font-semibold border-t border-gray-600 pt-1">
-                      <span>Total:</span>
-                      <span>${calculateTotalCost().toFixed(3)}</span>
-                    </div>
+                
+                {!canAfford && (
+                  <div className="flex items-center gap-2 mt-2 text-red-400">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span className="text-sm">Insufficient balance</span>
                   </div>
-                  <p className="text-gray-400 text-xs mt-2">
-                    Your current deposit balance: ${(userInfo.deposit_balance || 0).toFixed(3)}
-                  </p>
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                >
-                  {loading ? "Submitting..." : "Submit Task for Review"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        ) : (
-          /* Manage Tasks */
-          <div className="space-y-6">
-            {userTasks.length === 0 ? (
-              <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50 text-center p-8">
-                <CardContent className="pt-6">
-                  <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-white mb-2">No Tasks Yet</h3>
-                  <p className="text-gray-400">
-                    You haven't created any tasks yet. Click "Upload Task" to create your first task.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-6">
-                {userTasks.map((task: UserTask) => (
-                  <Card key={task.id} className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-white text-lg">{task.title}</CardTitle>
-                          <p className="text-gray-400 text-sm mt-1">{task.description}</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {task.status === 'pending' && (
-                            <div className="flex items-center text-yellow-400">
-                              <Clock className="w-4 h-4 mr-1" />
-                              <span className="text-sm">Pending</span>
-                            </div>
-                          )}
-                          {task.status === 'active' && (
-                            <div className="flex items-center text-green-400">
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              <span className="text-sm">Active</span>
-                            </div>
-                          )}
-                          <div className="text-right">
-                            <p className="text-green-400 font-semibold">${task.reward_amount.toFixed(3)}</p>
-                            <p className="text-gray-400 text-xs">per completion</p>
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-400">Completions</p>
-                          <p className="text-white font-semibold">
-                            {task.current_completions}/{task.max_completions}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Total Budget</p>
-                          <p className="text-white font-semibold">${task.total_budget.toFixed(3)}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Task Type</p>
-                          <p className="text-white font-semibold">{task.task_type}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Created</p>
-                          <p className="text-white font-semibold">
-                            {new Date(task.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {task.max_completions && (
-                        <div className="mt-4">
-                          <div className="flex justify-between text-sm text-gray-400 mb-1">
-                            <span>Progress</span>
-                            <span>{Math.round((task.current_completions / task.max_completions) * 100)}%</span>
-                          </div>
-                          <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div 
-                              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-300"
-                              style={{ 
-                                width: `${Math.min((task.current_completions / task.max_completions) * 100, 100)}%` 
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between mt-4">
-                        <a
-                          href={task.task_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300 text-sm flex items-center"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View Task
-                        </a>
-                        
-                        {task.status === 'active' && (
-                          <div className="text-green-400 text-sm">
-                            Earning: ${(task.current_completions * task.reward_amount).toFixed(3)}
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                )}
               </div>
             )}
-          </div>
-        )}
+
+            <Button 
+              onClick={handleSubmit}
+              disabled={loading || !canAfford || !title || !taskType || !taskUrl || !rewardAmount || !maxCompletions}
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
+              {loading ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
+              Upload Task (${totalCost.toFixed(3)} USDT)
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Info */}
+        <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+          <h3 className="text-white font-medium mb-2">How it works:</h3>
+          <ul className="text-gray-400 text-sm space-y-1">
+            <li>• Tasks are paid from your deposit balance</li>
+            <li>• Admin earns ${adminFee} USDT per task completion</li>
+            <li>• Your task will be visible to all users</li>
+            <li>• Users earn rewards for completing your tasks</li>
+          </ul>
+        </div>
       </div>
     </div>
   );

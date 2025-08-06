@@ -8,7 +8,6 @@ import { AdminProvider } from "./contexts/AdminContext";
 import Index from "./pages/Index";
 import AdminPanel from "./components/AdminPanel";
 import NotFound from "./pages/NotFound";
-import MonetizationInjector from "./components/MonetizationInjector";
 
 const queryClient = new QueryClient();
 
@@ -16,7 +15,6 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AdminProvider>
       <TooltipProvider>
-        <MonetizationInjector />
         <Toaster />
         <Sonner />
         <BrowserRouter>

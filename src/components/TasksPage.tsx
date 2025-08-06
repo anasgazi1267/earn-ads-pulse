@@ -10,10 +10,9 @@ interface TasksPageProps {
   userInfo: any;
   userBalance: number;
   updateUserBalance: (newBalance: number) => void;
-  setCurrentPage?: (page: string) => void;
 }
 
-const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUserBalance, setCurrentPage }) => {
+const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUserBalance }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -131,27 +130,6 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
             <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 bg-clip-text text-transparent">
               Complete Tasks & Earn
             </h1>
-          </div>
-          
-          {/* Add Your Task Button */}
-          <div className="mb-6">
-            <Button
-              onClick={() => {
-                if (setCurrentPage) {
-                  setCurrentPage('task-upload');
-                } else {
-                  // Fallback if setCurrentPage is not available
-                  console.log('Navigate to task upload page');
-                }
-              }}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300"
-            >
-              <Trophy className="w-5 h-5 mr-2" />
-              Add Your Task
-            </Button>
-            <p className="text-gray-400 text-sm mt-2">
-              Upload your own tasks and earn when others complete them
-            </p>
           </div>
           <p className="text-gray-300 text-lg">
             Complete simple tasks to earn USDT instantly
