@@ -135,7 +135,16 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
           {/* Add Your Task Button */}
           <div className="mb-6">
             <Button
-              onClick={() => window.open('/task-upload', '_blank')}
+              onClick={() => {
+                // For Telegram mini app, use proper navigation instead of opening new tab
+                if (typeof window !== 'undefined' && window.parent) {
+                  // Navigate within the same app context
+                  window.location.href = '#task-upload';
+                } else {
+                  // Fallback for web browsers
+                  window.location.href = '/task-upload';
+                }
+              }}
               className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300"
             >
               <Trophy className="w-5 h-5 mr-2" />

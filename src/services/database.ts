@@ -309,6 +309,43 @@ export class DatabaseService {
     }
   }
 
+  async getUserAdsWatchedToday(telegramId: string): Promise<number> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('user_activities')
+        .select('amount')
+        .eq('telegram_id', telegramId)
+        .eq('activity_type', 'automatic_ad_watched')
+        .eq('activity_date', today);
+
+      if (error) throw error;
+      return data?.length || 0;
+    } catch (error) {
+      console.error('Error getting user ads watched today:', error);
+      return 0;
+    }
+  }
+
+  async incrementAdsWatched(telegramId: string): Promise<void> {
+    try {
+      // Get current user data first
+      const user = await this.getUserByTelegramId(telegramId);
+      if (!user) return;
+
+      const newCount = (user.ads_watched_today || 0) + 1;
+      await supabase
+        .from('users')
+        .update({ 
+          ads_watched_today: newCount,
+          last_activity_date: new Date().toISOString().split('T')[0]
+        })
+        .eq('telegram_id', telegramId);
+    } catch (error) {
+      console.error('Error incrementing ads watched:', error);
+    }
+  }
+
   async incrementUserAdsWatched(telegramId: string): Promise<boolean> {
     try {
       // First get the current user data
