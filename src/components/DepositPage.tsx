@@ -154,7 +154,8 @@ const DepositPage: React.FC<DepositPageProps> = ({ userInfo, onBack }) => {
   };
 
   const handleConvertBalance = async () => {
-    if (!userInfo?.balance || userInfo.balance <= 0) {
+    const currentBalance = userInfo?.balance || 0;
+    if (!currentBalance || currentBalance <= 0) {
       toast({
         title: "No balance to convert",
         description: "You need earnings balance to convert",
@@ -176,7 +177,7 @@ const DepositPage: React.FC<DepositPageProps> = ({ userInfo, onBack }) => {
     const feeAmount = convertAmount * conversionFee;
     const finalAmount = convertAmount - feeAmount;
 
-    if (convertAmount > userInfo.balance) {
+    if (convertAmount > currentBalance) {
       toast({
         title: "Insufficient balance",
         description: "Not enough earnings balance",
@@ -188,7 +189,7 @@ const DepositPage: React.FC<DepositPageProps> = ({ userInfo, onBack }) => {
     setIsConverting(true);
     try {
       const success = await dbService.convertEarningsToDeposit(
-        userInfo.id.toString(),
+        userInfo.telegram_id.toString(),
         convertAmount
       );
 

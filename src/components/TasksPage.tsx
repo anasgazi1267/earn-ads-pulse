@@ -10,9 +10,10 @@ interface TasksPageProps {
   userInfo: any;
   userBalance: number;
   updateUserBalance: (newBalance: number) => void;
+  setCurrentPage?: (page: string) => void;
 }
 
-const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUserBalance }) => {
+const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUserBalance, setCurrentPage }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -136,13 +137,11 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
           <div className="mb-6">
             <Button
               onClick={() => {
-                // For Telegram mini app, use proper navigation instead of opening new tab
-                if (typeof window !== 'undefined' && window.parent) {
-                  // Navigate within the same app context
-                  window.location.href = '#task-upload';
+                if (setCurrentPage) {
+                  setCurrentPage('task-upload');
                 } else {
-                  // Fallback for web browsers
-                  window.location.href = '/task-upload';
+                  // Fallback if setCurrentPage is not available
+                  console.log('Navigate to task upload page');
                 }
               }}
               className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300"

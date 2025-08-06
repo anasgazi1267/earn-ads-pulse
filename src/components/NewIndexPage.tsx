@@ -303,6 +303,7 @@ const NewIndexPage = () => {
             userInfo={userInfo}
             userBalance={userBalance}
             updateUserBalance={loadUserInfo}
+            setCurrentPage={setCurrentPage}
           />
         )}
         {currentPage === 'referral' && (
