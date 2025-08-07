@@ -35,13 +35,24 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const [adsWatchedToday, setAdsWatchedToday] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [canWatch, setCanWatch] = useState(true);
-  const [dailyLimit] = useState(50);
+  const [dailyLimit, setDailyLimit] = useState(100);
   const [adReward] = useState(0.001);
   const { toast } = useToast();
 
   useEffect(() => {
     loadUserData();
+    loadAdSettings();
   }, [userInfo]);
+
+  const loadAdSettings = async () => {
+    try {
+      const settings = await dbService.getAdminSettings();
+      const limit = parseInt(settings.daily_ad_limit || '100');
+      setDailyLimit(limit);
+    } catch (error) {
+      console.error('Error loading ad settings:', error);
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;

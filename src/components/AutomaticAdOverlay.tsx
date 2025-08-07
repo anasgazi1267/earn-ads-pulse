@@ -52,23 +52,19 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
     }, adInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [userInfo, adInterval, adsWatchedToday, dailyAdLimit]);
+  }, [userInfo, adInterval]);
 
   const showMonetagAd = () => {
-    // Check if user has reached daily limit
-    if (adsWatchedToday >= dailyAdLimit) {
-      console.log('Daily ad limit reached');
-      return;
-    }
+    // No daily limit for automatic interstitial ads
     
-    // Only show Monetag ads now
+    // Show Monetag interstitial reward ad
     setShowAd(true);
     
-    // Auto close after 5 seconds
+    // Auto close after 3 seconds (shorter for interstitial)
     setTimeout(async () => {
       await rewardUser();
       setShowAd(false);
-    }, 5000);
+    }, 3000);
   };
 
   const rewardUser = async () => {
@@ -95,10 +91,10 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
         <div className="text-center mb-6">
           <Gift className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-white mb-2">
-            বিজ্ঞাপন দেখুন
+            Monetag বিজ্ঞাপন
           </h2>
           <p className="text-gray-300 text-sm">
-            অটোমেটিক বিজ্ঞাপন - {adsWatchedToday}/{dailyAdLimit} আজকের লিমিট
+            ইন্টারসিয়াল রিওয়ার্ড বিজ্ঞাপন
           </p>
         </div>
 
@@ -118,12 +114,12 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
 
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-2">
-            বিজ্ঞাপন ৫ সেকেন্ড পর স্বয়ংক্রিয়ভাবে বন্ধ হবে
+            বিজ্ঞাপন ৩ সেকেন্ড পর স্বয়ংক্রিয়ভাবে বন্ধ হবে
           </p>
           <div className="bg-gray-700 rounded-full h-2 mb-4">
             <div 
               className="bg-green-500 h-2 rounded-full transition-all duration-1000"
-              style={{ width: '0%', animation: 'progressBar 5s linear forwards' }}
+              style={{ width: '0%', animation: 'progressBar 3s linear forwards' }}
             />
           </div>
         </div>

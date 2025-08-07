@@ -98,6 +98,15 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
     const completions = parseInt(maxCompletions);
     const budget = parseFloat(totalBudget) || calculateTotalCost();
 
+    if (reward < 0.002) {
+      toast({
+        title: "Invalid CPC",
+        description: "Minimum CPC is $0.002",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (reward <= 0 || completions <= 0) {
       toast({
         title: "Invalid values",
@@ -303,11 +312,15 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
                       id="rewardAmount"
                       type="number"
                       step="0.001"
+                      min="0.002"
                       value={rewardAmount}
                       onChange={(e) => setRewardAmount(e.target.value)}
-                      placeholder="0.010"
+                      placeholder="0.002 (minimum)"
                       className="bg-gray-700/50 border-gray-600 text-white"
                     />
+                    <p className="text-xs text-yellow-400 mt-1">
+                      Minimum CPC: $0.002
+                    </p>
                   </div>
 
                   <div>
@@ -333,6 +346,11 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
                         ${calculateTotalCost().toFixed(3)}
                       </span>
                     </div>
+                    {rewardAmount && maxCompletions && (
+                      <p className="text-xs text-blue-400 mt-1">
+                        {parseInt(maxCompletions) || 0} users can complete this task
+                      </p>
+                    )}
                   </div>
                 </div>
 
