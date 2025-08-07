@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, Users, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, DollarSign, Users, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAdmin } from '@/contexts/AdminContext';
 import { dbService } from '@/services/database';
+
+interface PaymentMethod {
+  id: string;
+  name: string;
+  display_name: string;
+  min_amount: number;
+  max_amount?: number;
+}
 
 interface WithdrawPageProps {
   withdrawalEnabled: boolean;
@@ -15,338 +24,250 @@ interface WithdrawPageProps {
   userInfo: any;
 }
 
-const WithdrawPage: React.FC<WithdrawPageProps> = ({ 
-  withdrawalEnabled, 
+const WithdrawPage: React.FC<WithdrawPageProps> = ({
+  withdrawalEnabled,
   referralCount,
   userBalance,
   userInfo
 }) => {
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [binancePayId, setBinancePayId] = useState('');
-  const [withdrawalMethod, setWithdrawalMethod] = useState('binance');
-  const [bkashNumber, setBkashNumber] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [selectedMethod, setSelectedMethod] = useState('');
+  const [amount, setAmount] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const { settings } = useAdmin();
-
-  const minWithdraw = parseFloat(settings.minWithdrawal);
-  const requiredReferrals = parseInt(settings.requiredReferrals);
 
   useEffect(() => {
-    loadWithdrawalHistory();
-  }, [userInfo]);
+    loadPaymentMethods();
+  }, []);
 
-  const loadWithdrawalHistory = async () => {
-    if (userInfo?.id) {
-      try {
-        const history = await dbService.getWithdrawalRequests();
-        const userHistory = history.filter(w => w.telegram_id === userInfo.id.toString());
-        setWithdrawalHistory(userHistory);
-      } catch (error) {
-        console.error('Error loading withdrawal history:', error);
-      }
+  const loadPaymentMethods = async () => {
+    try {
+      const methods = await dbService.getPaymentMethods();
+      // Filter out bKash methods
+      const filteredMethods = methods.filter(method => 
+        method.name !== 'bkash' && method.name.toLowerCase() !== 'bkash'
+      );
+      setPaymentMethods(filteredMethods);
+    } catch (error) {
+      console.error('Error loading payment methods:', error);
     }
   };
 
   const handleWithdraw = async () => {
     if (!withdrawalEnabled) {
       toast({
-        title: "Withdrawal Disabled",
-        description: `You need ${requiredReferrals} successful referrals to enable withdrawals. Current: ${referralCount}`,
+        title: "Withdrawal not available",
+        description: "You need at least 5 referrals to withdraw",
         variant: "destructive"
       });
       return;
     }
 
-    const amount = parseFloat(withdrawAmount);
-    
-    if (!amount || amount < minWithdraw) {
+    if (!selectedMethod || !amount || !walletAddress) {
       toast({
-        title: "Invalid Amount",
-        description: `Minimum withdrawal is $${minWithdraw}`,
+        title: "Missing information",
+        description: "Please fill in all fields",
         variant: "destructive"
       });
       return;
     }
 
-    if (amount > userBalance) {
+    const withdrawAmount = parseFloat(amount);
+    if (withdrawAmount > userBalance) {
       toast({
-        title: "Insufficient Balance",
-        description: "You don't have enough balance for this withdrawal",
+        title: "Insufficient balance",
+        description: "You don't have enough balance to withdraw this amount",
         variant: "destructive"
       });
       return;
     }
 
-    const address = withdrawalMethod === 'binance' ? binancePayId : bkashNumber;
-    if (!address.trim()) {
-      toast({
-        title: "Missing Information",
-        description: `Please enter your ${withdrawalMethod === 'binance' ? 'Binance Pay ID' : 'Bkash Number'}`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-      try {
-        // Deduct balance first
-        const newBalance = userBalance - amount;
-        const balanceUpdated = await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
-        
-        if (!balanceUpdated) {
-          toast({
-            title: "Error",
-            description: "Failed to update balance",
-            variant: "destructive"
-          });
-          return;
-        }
-
-        const success = await dbService.createWithdrawalRequest({
-          telegram_id: userInfo.id.toString(),
-          username: userInfo.username || `${userInfo.first_name} ${userInfo.last_name}`,
-          amount: amount,
-          withdrawal_method: withdrawalMethod,
-          wallet_address: address,
-          status: 'pending'
+    const selectedPaymentMethod = paymentMethods.find(m => m.id === selectedMethod);
+    if (selectedPaymentMethod) {
+      if (withdrawAmount < selectedPaymentMethod.min_amount) {
+        toast({
+          title: "Amount too low",
+          description: `Minimum withdrawal amount is $${selectedPaymentMethod.min_amount}`,
+          variant: "destructive"
         });
+        return;
+      }
+
+      if (selectedPaymentMethod.max_amount && withdrawAmount > selectedPaymentMethod.max_amount) {
+        toast({
+          title: "Amount too high",
+          description: `Maximum withdrawal amount is $${selectedPaymentMethod.max_amount}`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      const success = await dbService.createWithdrawalRequest({
+        telegram_id: userInfo.id.toString(),
+        username: userInfo.username || 'N/A',
+        amount: withdrawAmount,
+        withdrawal_method: selectedPaymentMethod?.name || selectedMethod,
+        wallet_address: walletAddress,
+        status: 'pending'
+      });
 
       if (success) {
-        // Clear form
-        setWithdrawAmount('');
-        setBinancePayId('');
-        setBkashNumber('');
-
-        // Reload history
-        loadWithdrawalHistory();
-
         toast({
-          title: "Withdrawal Requested",
-          description: "Your withdrawal request has been submitted for approval",
+          title: "Withdrawal request submitted!",
+          description: "Your withdrawal will be processed within 24-48 hours",
         });
+        
+        // Reset form
+        setAmount('');
+        setWalletAddress('');
+        setSelectedMethod('');
+      } else {
+        throw new Error('Failed to submit withdrawal request');
       }
     } catch (error) {
-      console.error('Withdrawal error:', error);
+      console.error('Error submitting withdrawal:', error);
       toast({
         title: "Error",
         description: "Failed to submit withdrawal request",
         variant: "destructive"
       });
     } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'text-green-400';
-      case 'pending': return 'text-yellow-400';
-      case 'failed': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed': return '✅';
-      case 'pending': return '⏳';
-      case 'failed': return '❌';
-      default: return '⏳';
+      setLoading(false);
     }
   };
 
   return (
-    <div className="p-4 space-y-6">
-      {/* Header */}
-      <div className="text-center py-4">
-        <h1 className="text-2xl font-bold text-white mb-2">Withdraw Funds</h1>
-        <div className="flex items-center justify-center space-x-2">
-          <DollarSign className="w-6 h-6 text-green-400" />
-          <span className="text-2xl font-bold text-green-400">${userBalance.toFixed(3)}</span>
-          <span className="text-gray-400">Available</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center mb-6">
+          <h1 className="text-2xl font-bold text-white flex items-center">
+            <DollarSign className="w-6 h-6 mr-2" />
+            Withdraw Funds
+          </h1>
         </div>
-      </div>
 
-      {/* Referral Requirement Notice */}
-      {!withdrawalEnabled && (
-        <Card className="bg-red-900/20 border-red-500/50">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="w-6 h-6 text-red-400" />
-              <div>
-                <h3 className="text-red-400 font-semibold">Withdrawal Locked</h3>
-                <p className="text-gray-300 text-sm">
-                  Complete {requiredReferrals} referrals to unlock withdrawals. 
-                  Current: {referralCount}/{requiredReferrals}
+        {/* Balance & Referral Info */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+            <CardContent className="p-4 text-center">
+              <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm">Available Balance</p>
+              <p className="text-2xl font-bold text-white">${userBalance.toFixed(3)}</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+            <CardContent className="p-4 text-center">
+              <Users className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm">Referrals</p>
+              <p className="text-2xl font-bold text-white">{referralCount}/5</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Withdrawal Status Alert */}
+        {!withdrawalEnabled && (
+          <Alert className="mb-6 bg-orange-900/20 border-orange-500/30">
+            <AlertTriangle className="h-4 w-4 text-orange-400" />
+            <AlertDescription className="text-orange-300">
+              You need at least 5 referrals to enable withdrawals. 
+              Current referrals: {referralCount}/5
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Withdrawal Form */}
+        <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+          <CardHeader>
+            <CardTitle className="text-white">Withdrawal Request</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Payment Method Selection */}
+            <div>
+              <Label className="text-gray-300 mb-2 block">
+                Withdrawal Method
+              </Label>
+              <Select onValueChange={setSelectedMethod} disabled={!withdrawalEnabled}>
+                <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
+                  <SelectValue placeholder="Choose withdrawal method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentMethods.map((method) => (
+                    <SelectItem key={method.id} value={method.id}>
+                      {method.display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Amount Input */}
+            <div>
+              <Label htmlFor="amount" className="text-gray-300">
+                Withdrawal Amount ($)
+              </Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="Enter amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={!withdrawalEnabled}
+                className="bg-gray-700/50 border-gray-600 text-white"
+                max={userBalance}
+              />
+              {selectedMethod && paymentMethods.find(m => m.id === selectedMethod) && (
+                <p className="text-gray-400 text-sm mt-1">
+                  Min: ${paymentMethods.find(m => m.id === selectedMethod)?.min_amount} 
+                  {paymentMethods.find(m => m.id === selectedMethod)?.max_amount && 
+                    ` | Max: $${paymentMethods.find(m => m.id === selectedMethod)?.max_amount}`
+                  }
                 </p>
-              </div>
+              )}
+            </div>
+
+            {/* Wallet Address */}
+            <div>
+              <Label htmlFor="wallet" className="text-gray-300">
+                Wallet Address / Account ID
+              </Label>
+              <Input
+                id="wallet"
+                placeholder="Enter your wallet address or account ID"
+                value={walletAddress}
+                onChange={(e) => setWalletAddress(e.target.value)}
+                disabled={!withdrawalEnabled}
+                className="bg-gray-700/50 border-gray-600 text-white"
+              />
+            </div>
+
+            {/* Submit Button */}
+            <Button
+              onClick={handleWithdraw}
+              disabled={loading || !withdrawalEnabled || !selectedMethod || !amount || !walletAddress}
+              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 disabled:opacity-50"
+            >
+              {loading ? "Processing..." : "Submit Withdrawal Request"}
+            </Button>
+
+            {/* Information */}
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mt-4">
+              <h3 className="text-blue-300 font-semibold mb-2">Important Information:</h3>
+              <ul className="text-blue-200 text-sm space-y-1">
+                <li>• Withdrawals are processed within 24-48 hours</li>
+                <li>• Minimum 5 referrals required for withdrawal</li>
+                <li>• Double-check your wallet address before submitting</li>
+                <li>• Processing fees may apply depending on the method</li>
+              </ul>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Withdrawal Form */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white">Request Withdrawal</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-white">
-              Amount (USDT) - Min: ${minWithdraw}
-            </Label>
-            <Input
-              id="amount"
-              type="number"
-              placeholder="0.00"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-              className="bg-gray-700 border-gray-600 text-white"
-              min={minWithdraw}
-              max={userBalance}
-              step="0.01"
-              disabled={!withdrawalEnabled}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-white">Withdrawal Method</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={withdrawalMethod === 'binance' ? 'default' : 'outline'}
-                onClick={() => setWithdrawalMethod('binance')}
-                className="flex-col h-auto p-3"
-                disabled={!withdrawalEnabled}
-              >
-                {withdrawalMethod === 'binance' && <span className="text-green-400 text-lg mb-1">✓</span>}
-                <span className="text-sm">Binance Pay</span>
-              </Button>
-              <Button
-                type="button"
-                variant={withdrawalMethod === 'bkash' ? 'default' : 'outline'}
-                onClick={() => setWithdrawalMethod('bkash')}
-                className="flex-col h-auto p-3"
-                disabled={!withdrawalEnabled}
-              >
-                {withdrawalMethod === 'bkash' && <span className="text-green-400 text-lg mb-1">✓</span>}
-                <span className="text-sm">Bkash</span>
-              </Button>
-            </div>
-          </div>
-
-          {withdrawalMethod === 'binance' && (
-            <div className="space-y-2">
-              <Label htmlFor="binanceId" className="text-white">
-                Binance Pay ID
-              </Label>
-              <Input
-                id="binanceId"
-                type="text"
-                placeholder="Enter your Binance Pay ID"
-                value={binancePayId}
-                onChange={(e) => setBinancePayId(e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white"
-                disabled={!withdrawalEnabled}
-              />
-            </div>
-          )}
-          
-
-          {withdrawalMethod === 'bkash' && (
-            <div className="space-y-2">
-              <Label htmlFor="bkashNumber" className="text-white">
-                Bkash Number
-              </Label>
-              <Input
-                id="bkashNumber"
-                type="text"
-                placeholder="Enter your Bkash mobile number"
-                value={bkashNumber}
-                onChange={(e) => setBkashNumber(e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white"
-                disabled={!withdrawalEnabled}
-              />
-              <div className="text-sm text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded-lg p-2">
-                <p>💱 Exchange Rate: $1 = 130 BDT</p>
-                <p>💰 You'll receive: {(parseFloat(withdrawAmount) * 130).toFixed(0)} BDT</p>
-              </div>
-            </div>
-          )}
-
-          <div className="text-sm text-gray-400 space-y-1">
-            <p>• Withdrawals are processed within 24-48 hours</p>
-            <p>• Admin approval is required for all withdrawals</p>
-            <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
-          </div>
-
-          <Button
-            onClick={handleWithdraw}
-            disabled={isSubmitting || userBalance < minWithdraw || !withdrawalEnabled}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600"
-          >
-            {isSubmitting ? "Submitting..." : "Request Withdrawal"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Withdrawal History */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white">Withdrawal History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {withdrawalHistory.length > 0 ? (
-            <div className="space-y-3">
-              {withdrawalHistory.map((withdrawal) => (
-                <div key={withdrawal.id} className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
-                  <div>
-                    <p className="text-white font-medium">${withdrawal.amount.toFixed(2)}</p>
-                    <p className="text-gray-400 text-sm">{withdrawal.date}</p>
-                   <p className="text-gray-400 text-xs">
-                     {withdrawal.method === 'binance' ? 'Binance Pay' : 
-                      withdrawal.method === 'usdt' ? 'USDT TRC20' : 
-                      withdrawal.method === 'bkash' ? `Bkash (${(withdrawal.amount * 130).toFixed(0)} BDT)` : withdrawal.method}
-                   </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center space-x-2">
-                      <span>{getStatusIcon(withdrawal.status)}</span>
-                      <p className={`font-medium capitalize ${getStatusColor(withdrawal.status)}`}>
-                        {withdrawal.status}
-                      </p>
-                    </div>
-                    <p className="text-gray-400 text-xs">{withdrawal.address}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-400 text-center py-4">
-              No withdrawal history yet
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Important Notes */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white text-lg">Important Notes</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-gray-400">
-          <p>• Minimum withdrawal amount: ${minWithdraw} USDT</p>
-          <p>• {requiredReferrals} completed referrals required to unlock withdrawals</p>
-          <p>• All withdrawals require admin approval</p>
-          <p>• Processing time: 24-48 hours after approval</p>
-          <p>• Supported methods: Binance Pay & Bkash</p>
-          <p>• Bkash rate: $1 = 130 BDT</p>
-          <p>• Double-check your wallet address before submitting</p>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 };

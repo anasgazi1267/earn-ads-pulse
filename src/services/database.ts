@@ -252,6 +252,32 @@ export class DatabaseService {
     }
   }
 
+  async updateUserDepositBalance(telegramId: string, amount: number): Promise<boolean> {
+    try {
+      // Get current balance
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('deposit_balance')
+        .eq('telegram_id', telegramId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentBalance = user.deposit_balance || 0;
+      const newBalance = currentBalance + amount;
+
+      const { error } = await supabase
+        .from('users')
+        .update({ deposit_balance: newBalance })
+        .eq('telegram_id', telegramId);
+
+      return !error;
+    } catch (error) {
+      console.error('Error updating user deposit balance:', error);
+      return false;
+    }
+  }
+
   async updateChannelJoinStatus(telegramId: string, joined: boolean): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -280,6 +306,43 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error increasing balance:', error);
       return false;
+    }
+  }
+
+  async getUserAdsWatchedToday(telegramId: string): Promise<number> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('user_activities')
+        .select('amount')
+        .eq('telegram_id', telegramId)
+        .eq('activity_type', 'automatic_ad_watched')
+        .eq('activity_date', today);
+
+      if (error) throw error;
+      return data?.length || 0;
+    } catch (error) {
+      console.error('Error getting user ads watched today:', error);
+      return 0;
+    }
+  }
+
+  async incrementAdsWatched(telegramId: string): Promise<void> {
+    try {
+      // Get current user data first
+      const user = await this.getUserByTelegramId(telegramId);
+      if (!user) return;
+
+      const newCount = (user.ads_watched_today || 0) + 1;
+      await supabase
+        .from('users')
+        .update({ 
+          ads_watched_today: newCount,
+          last_activity_date: new Date().toISOString().split('T')[0]
+        })
+        .eq('telegram_id', telegramId);
+    } catch (error) {
+      console.error('Error incrementing ads watched:', error);
     }
   }
 
@@ -348,6 +411,22 @@ export class DatabaseService {
     }
   }
 
+  async getAdminSetting(key: string): Promise<string> {
+    try {
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .select('setting_value')
+        .eq('setting_key', key)
+        .single();
+
+      if (error) throw error;
+      return data?.setting_value || '';
+    } catch (error) {
+      console.error('Error getting admin setting:', error);
+      return '';
+    }
+  }
+
   async updateAdminSetting(key: string, value: string): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -362,6 +441,80 @@ export class DatabaseService {
       return !error;
     } catch (error) {
       console.error('Error updating admin setting:', error);
+      return false;
+    }
+  }
+
+  // Payment methods
+  async getPaymentMethods(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_name');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting payment methods:', error);
+      return [];
+    }
+  }
+
+  async createDepositRequest(depositData: any): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('user_deposits')
+        .insert(depositData);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error creating deposit request:', error);
+      return false;
+    }
+  }
+
+  async convertEarningsToDeposit(userId: string, amount: number): Promise<boolean> {
+    try {
+      const user = await this.getUserByTelegramId(userId);
+      if (!user) return false;
+
+      const settings = await this.getAdminSettings();
+      const feePercentage = parseFloat(settings.conversion_fee_percentage || '0.1');
+      const feeAmount = amount * feePercentage;
+      const convertAmount = amount - feeAmount;
+
+      if (user.balance < amount) return false;
+
+      // Update balances
+      const newBalance = user.balance - amount;
+      const newDepositBalance = (user.deposit_balance || 0) + convertAmount;
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          balance: newBalance,
+          deposit_balance: newDepositBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('telegram_id', userId);
+
+      if (error) throw error;
+
+      // Log the conversion
+      await supabase
+        .from('balance_conversions')
+        .insert({
+          user_id: userId,
+          amount_converted: amount,
+          conversion_fee: feeAmount
+        });
+
+      return true;
+    } catch (error) {
+      console.error('Error converting balance:', error);
       return false;
     }
   }
@@ -913,23 +1066,6 @@ export class DatabaseService {
     }
   }
 
-  async updateUserDepositBalance(telegramId: string, newDepositBalance: number): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ 
-          deposit_balance: newDepositBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('telegram_id', telegramId);
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error updating deposit balance:', error);
-      return false;
-    }
-  }
 
   async convertEarningToDeposit(userId: string, amount: number): Promise<boolean> {
     try {
@@ -970,6 +1106,34 @@ export class DatabaseService {
       console.error('Error converting balance:', error);
       return false;
     }
+  }
+
+  async getDeviceTrackingData() {
+    const { data, error } = await supabase
+      .from('user_device_tracking')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching device tracking data:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async toggleDeviceBlocking(telegramId: string, isBlocked: boolean) {
+    const { error } = await supabase
+      .from('user_device_tracking')
+      .update({ is_blocked: isBlocked })
+      .eq('telegram_id', telegramId);
+
+    if (error) {
+      console.error('Error toggling device blocking:', error);
+      throw error;
+    }
+
+    return true;
   }
 }
 
