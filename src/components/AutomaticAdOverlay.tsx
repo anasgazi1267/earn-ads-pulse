@@ -55,9 +55,12 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
   }, [userInfo, adInterval]);
 
   const showMonetagAd = () => {
-    // No daily limit for automatic interstitial ads
+    if (!userInfo?.telegram_id) return;
     
-    // Show Monetag interstitial reward ad
+    // No daily limit for automatic interstitial ads
+    console.log('Showing automatic Monetag interstitial ad');
+    
+    // Show Monetag interstitial reward ad (not popup)
     setShowAd(true);
     
     // Auto close after 3 seconds (shorter for interstitial)

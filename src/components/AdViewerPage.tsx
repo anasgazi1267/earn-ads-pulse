@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { dbService } from '../services/database';
+import HtmlAdDisplay from './HtmlAdDisplay';
 
 interface AdViewerPageProps {
   userInfo: any;
@@ -68,9 +69,9 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   }, [isWatching, countdown]);
 
   const loadUserData = async () => {
-    if (userInfo?.id) {
+    if (userInfo?.telegram_id) {
       try {
-        const user = await dbService.getUserByTelegramId(userInfo.id.toString());
+        const user = await dbService.getUserByTelegramId(userInfo.telegram_id);
         if (user) {
           setAdsWatchedToday(user.ads_watched_today || 0);
           setCanWatch((user.ads_watched_today || 0) < dailyLimit);
@@ -145,13 +146,13 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     try {
       // Update user balance
       const newBalance = userBalance + adReward;
-      const balanceSuccess = await dbService.updateUserBalance(userInfo.id.toString(), newBalance);
+      const balanceSuccess = await dbService.updateUserBalance(userInfo.telegram_id, newBalance);
       
       if (balanceSuccess) {
         updateUserBalance(newBalance);
         
         // Increment ads watched count
-        const adSuccess = await dbService.incrementUserAdsWatched(userInfo.id.toString());
+        const adSuccess = await dbService.incrementUserAdsWatched(userInfo.telegram_id);
         if (adSuccess) {
           const newAdsCount = adsWatchedToday + 1;
           setAdsWatchedToday(newAdsCount);
@@ -159,7 +160,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
           setCanWatch(newAdsCount < dailyLimit);
           
           // Log activity
-          await dbService.logActivity(userInfo.id.toString(), 'ad_watch', adReward);
+          await dbService.logActivity(userInfo.telegram_id, 'ad_watch', adReward);
           
           toast({
             title: "Ad Completed!",
@@ -301,13 +302,25 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
                   ></div>
                 </div>
                 
-                {/* Monetag Ad Placeholder */}
+                {/* Monetag Ad Display */}
                 <div className="bg-gray-800 rounded-lg p-4 border-2 border-dashed border-gray-600">
-                  <p className="text-gray-400 text-sm">Advertisement Content</p>
-                  <div id="monetag-ad-container" className="min-h-[150px] flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                      <p className="text-gray-400 text-sm">Loading ad...</p>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-gray-400 text-sm">Advertisement Content</p>
+                    <Badge variant="secondary" className="bg-green-600/20 text-green-300 text-xs">
+                      Monetag
+                    </Badge>
+                  </div>
+                  <div id="monetag-ad-container" className="min-h-[200px] flex items-center justify-center bg-gray-900 rounded">
+                    <div className="text-center p-6">
+                      <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center mx-auto mb-4">
+                        <span className="text-white font-bold text-xl">AD</span>
+                      </div>
+                      <h3 className="text-white text-lg font-bold mb-2">Monetag Advertisement</h3>
+                      <p className="text-gray-400 text-sm mb-4">Interactive reward advertisement</p>
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <p className="text-yellow-400 text-sm">বিজ্ঞাপন কন্টেন্ট</p>
+                        <p className="text-gray-300 text-xs mt-1">Monetag interstitial reward ad</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -398,6 +411,9 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         </CardContent>
       </Card>
 
+      {/* HTML Banner Ad */}
+      <HtmlAdDisplay position="banner" className="mb-6" />
+
       {/* Earning Info */}
       <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30">
         <CardHeader>
@@ -421,6 +437,9 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
           </p>
         </CardContent>
       </Card>
+
+      {/* HTML Footer Ad */}
+      <HtmlAdDisplay position="footer" className="mt-6" />
     </div>
   );
 };
