@@ -465,7 +465,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_ads_watched: {
+        Args: { user_telegram_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

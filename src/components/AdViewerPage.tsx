@@ -414,6 +414,9 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       {/* HTML Banner Ad */}
       <HtmlAdDisplay position="banner" className="mb-6" />
 
+      {/* HTML Sidebar Ad */}
+      <HtmlAdDisplay position="sidebar" className="mb-6" />
+
       {/* Earning Info */}
       <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30">
         <CardHeader>

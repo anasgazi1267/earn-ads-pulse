@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Save, Code, Timer } from 'lucide-react';
+import { Save, Code, Timer, Monitor } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { dbService } from '@/services/database';
 
 const AdCodeManager = () => {
   const [adSettings, setAdSettings] = useState({
     ad_interval_seconds: '20',
+    daily_ad_limit: '100',
     banner_ad_code: '',
     popup_ad_code: '',
     footer_ad_code: '',
@@ -29,6 +30,7 @@ const AdCodeManager = () => {
       const settings = await dbService.getAdminSettings();
       setAdSettings({
         ad_interval_seconds: settings.ad_interval_seconds || '20',
+        daily_ad_limit: settings.daily_ad_limit || '100',
         banner_ad_code: settings.banner_ad_code || '',
         popup_ad_code: settings.popup_ad_code || '',
         footer_ad_code: settings.footer_ad_code || '',
@@ -112,32 +114,63 @@ const AdCodeManager = () => {
             Ad Timing Control
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-white">Auto Ad Interval (seconds)</Label>
-            <div className="flex gap-3">
-              <Input
-                type="number"
-                min="10"
-                max="300"
-                value={adSettings.ad_interval_seconds}
-                onChange={(e) => setAdSettings({
-                  ...adSettings,
-                  ad_interval_seconds: e.target.value
-                })}
-                className="bg-gray-700 border-gray-600 text-white"
-                placeholder="20"
-              />
-              <Button
-                onClick={() => handleSave('ad_interval_seconds', adSettings.ad_interval_seconds)}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Save className="w-4 h-4" />
-              </Button>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Label htmlFor="adInterval" className="text-gray-300 flex items-center space-x-2">
+                <Timer className="w-4 h-4" />
+                <span>Auto Ad Interval (seconds)</span>
+              </Label>
+              <div className="flex space-x-2 mt-2">
+                <Input
+                  id="adInterval"
+                  type="number"
+                  min="10"
+                  max="300"
+                  value={adSettings.ad_interval_seconds}
+                  onChange={(e) => setAdSettings({...adSettings, ad_interval_seconds: e.target.value})}
+                  className="bg-gray-700/50 border-gray-600 text-white"
+                />
+                <Button 
+                  onClick={() => handleSave('ad_interval_seconds', adSettings.ad_interval_seconds)}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Save className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-gray-400 text-sm mt-1">
+                How often automatic Monetag ads appear (default: 20 seconds)
+              </p>
             </div>
-            <p className="text-gray-400 text-sm mt-1">
-              How often automatic ads appear (minimum 10 seconds)
-            </p>
+
+            <div>
+              <Label htmlFor="dailyAdLimit" className="text-gray-300 flex items-center space-x-2">
+                <Monitor className="w-4 h-4" />
+                <span>Daily Ad Limit</span>
+              </Label>
+              <div className="flex space-x-2 mt-2">
+                <Input
+                  id="dailyAdLimit"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={adSettings.daily_ad_limit}
+                  onChange={(e) => setAdSettings({...adSettings, daily_ad_limit: e.target.value})}
+                  className="bg-gray-700/50 border-gray-600 text-white"
+                />
+                <Button 
+                  onClick={() => handleSave('daily_ad_limit', adSettings.daily_ad_limit)}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Save className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-gray-400 text-sm mt-1">
+                Maximum ads users can watch per day (default: 100)
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
