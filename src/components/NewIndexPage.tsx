@@ -6,7 +6,7 @@ import NewHomePage from '@/components/NewHomePage';
 import TasksPage from '@/components/TasksPage';
 import JoinChannelsPage from '@/components/JoinChannelsPage';
 import ReferralPage from '@/components/ReferralPage';
-import WithdrawPage from '@/components/WithdrawPage';
+import WalletPage from '@/components/WalletPage';
 import SpinPage from '@/components/SpinPage';
 import AdViewerPage from '@/components/AdViewerPage';
 import AdminPanel from '@/components/AdminPanel';
@@ -313,12 +313,12 @@ const NewIndexPage = () => {
             updateUserBalance={loadUserInfo}
           />
         )}
-        {currentPage === 'withdraw' && (
-          <WithdrawPage 
-            withdrawalEnabled={withdrawalEnabled}
-            referralCount={referralCount}
-            userBalance={userBalance}
+        {currentPage === 'wallet' && (
+          <WalletPage 
             userInfo={userInfo}
+            userBalance={userBalance}
+            updateUserBalance={(newBalance: number) => setUserBalance(newBalance)}
+            onBack={() => setCurrentPage('home')}
           />
         )}
         {currentPage === 'spin' && (

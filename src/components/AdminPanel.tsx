@@ -310,46 +310,163 @@ const AdminPanel = () => {
         )}
 
         {activeTab === 'users' && (
-          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
-            <CardHeader>
-              <CardTitle className="text-white">User Management</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-700">
-                      <th className="text-left py-3 px-4 text-gray-300">User</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Balance</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Referrals</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.slice(0, 10).map((user) => (
-                      <tr key={user.id} className="border-b border-gray-700/50">
-                        <td className="py-3 px-4">
-                          <div>
-                            <p className="text-white font-medium">
-                              {user.first_name} {user.last_name}
-                            </p>
-                            <p className="text-gray-400 text-xs">@{user.username || 'no_username'}</p>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-white">${(user.balance || 0).toFixed(3)}</td>
-                        <td className="py-3 px-4 text-white">{user.referral_count || 0}</td>
-                        <td className="py-3 px-4">
-                          <Badge variant={user.channels_joined ? "default" : "secondary"}>
-                            {user.channels_joined ? 'Verified' : 'Unverified'}
-                          </Badge>
-                        </td>
+          <div className="space-y-6">
+            <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+              <CardHeader>
+                <CardTitle className="text-white">User Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-700">
+                        <th className="text-left py-3 px-4 text-gray-300">User ID</th>
+                        <th className="text-left py-3 px-4 text-gray-300">User Info</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Balances</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Activity</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                        <th className="text-left py-3 px-4 text-gray-300">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                          <td className="py-3 px-4">
+                            <div className="text-xs">
+                              <p className="text-gray-400 font-mono">ID: {user.telegram_id}</p>
+                              <p className="text-gray-500">UUID: {user.id.slice(0, 8)}...</p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div>
+                              <p className="text-white font-medium">
+                                {user.first_name} {user.last_name}
+                              </p>
+                              <p className="text-gray-400 text-xs">@{user.username || 'no_username'}</p>
+                              <p className="text-gray-500 text-xs">{user.referral_count || 0} referrals</p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-xs">
+                              <p className="text-green-400">Earnings: ${(user.balance || 0).toFixed(3)}</p>
+                              <p className="text-blue-400">Deposit: ${(user.deposit_balance || 0).toFixed(3)}</p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-xs">
+                              <p className="text-white">Ads: {user.ads_watched_today || 0}</p>
+                              <p className="text-gray-400">Spins: {user.spins_used_today || 0}</p>
+                              <p className="text-gray-500">Last: {user.last_activity_date || 'Never'}</p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="space-y-1">
+                              <Badge variant={user.channels_joined ? "default" : "secondary"} className="text-xs">
+                                {user.channels_joined ? 'Verified' : 'Unverified'}
+                              </Badge>
+                              <p className="text-xs text-gray-400">
+                                Joined: {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex space-x-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="text-xs border-gray-600 text-white hover:bg-gray-700"
+                                onClick={async () => {
+                                  const success = await dbService.deleteUser(user.telegram_id);
+                                  if (success) {
+                                    setUsers(prev => prev.filter(u => u.id !== user.id));
+                                    toast({ title: "User deleted successfully" });
+                                  } else {
+                                    toast({ title: "Failed to delete user", variant: "destructive" });
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+                <CardHeader>
+                  <CardTitle className="text-white">Withdrawal Requests</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left py-2 px-3 text-gray-300">User</th>
+                          <th className="text-left py-2 px-3 text-gray-300">Amount</th>
+                          <th className="text-left py-2 px-3 text-gray-300">Method</th>
+                          <th className="text-left py-2 px-3 text-gray-300">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {withdrawalRequests.slice(0, 10).map((request) => (
+                          <tr key={request.id} className="border-b border-gray-700/50">
+                            <td className="py-2 px-3 text-white text-xs">{request.username}</td>
+                            <td className="py-2 px-3 text-green-400 text-xs">${request.amount}</td>
+                            <td className="py-2 px-3 text-gray-300 text-xs">{request.withdrawal_method}</td>
+                            <td className="py-2 px-3">
+                              <Badge variant={request.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                                {request.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+                <CardHeader>
+                  <CardTitle className="text-white">Deposit Requests</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left py-2 px-3 text-gray-300">User</th>
+                          <th className="text-left py-2 px-3 text-gray-300">Amount</th>
+                          <th className="text-left py-2 px-3 text-gray-300">Method</th>
+                          <th className="text-left py-2 px-3 text-gray-300">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deposits.slice(0, 10).map((deposit) => (
+                          <tr key={deposit.id} className="border-b border-gray-700/50">
+                            <td className="py-2 px-3 text-white text-xs">{deposit.user_id}</td>
+                            <td className="py-2 px-3 text-blue-400 text-xs">${deposit.amount}</td>
+                            <td className="py-2 px-3 text-gray-300 text-xs">{deposit.deposit_method}</td>
+                            <td className="py-2 px-3">
+                              <Badge variant={deposit.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                                {deposit.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         )}
 
         {activeTab === 'tasks' && (

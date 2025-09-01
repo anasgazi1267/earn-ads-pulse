@@ -15,7 +15,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ currentPage, setCur
     { page: 'ad-viewer', icon: Eye, label: 'Ads' },
     { page: 'tasks', icon: Target, label: 'Tasks' },
     { page: 'referral', icon: Users, label: 'Referral' },
-    { page: 'withdraw', icon: Wallet, label: 'Withdraw' }
+    { page: 'wallet', icon: Wallet, label: 'Wallet' }
   ];
 
   return (

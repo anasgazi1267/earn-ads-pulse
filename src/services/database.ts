@@ -210,7 +210,7 @@ export class DatabaseService {
     }
   }
 
-  // Delete user for testing purposes
+  // Delete user for admin purposes
   async deleteUser(telegramId: string): Promise<boolean> {
     try {
       // Delete user's activities first
@@ -252,32 +252,6 @@ export class DatabaseService {
     }
   }
 
-  async updateUserDepositBalance(telegramId: string, amount: number): Promise<boolean> {
-    try {
-      // Get current balance
-      const { data: user, error: fetchError } = await supabase
-        .from('users')
-        .select('deposit_balance')
-        .eq('telegram_id', telegramId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const currentBalance = user.deposit_balance || 0;
-      const newBalance = currentBalance + amount;
-
-      const { error } = await supabase
-        .from('users')
-        .update({ deposit_balance: newBalance })
-        .eq('telegram_id', telegramId);
-
-      return !error;
-    } catch (error) {
-      console.error('Error updating user deposit balance:', error);
-      return false;
-    }
-  }
-
   async updateChannelJoinStatus(telegramId: string, joined: boolean): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -296,93 +270,19 @@ export class DatabaseService {
     }
   }
 
-  async increaseBalance(telegramId: string, amount: number): Promise<boolean> {
-    try {
-      const user = await this.getUserByTelegramId(telegramId);
-      if (!user) return false;
-
-      const newBalance = user.balance + amount;
-      return await this.updateUserBalance(telegramId, newBalance);
-    } catch (error) {
-      console.error('Error increasing balance:', error);
-      return false;
-    }
-  }
-
-  async getUserAdsWatchedToday(telegramId: string): Promise<number> {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
-        .from('user_activities')
-        .select('amount')
-        .eq('telegram_id', telegramId)
-        .eq('activity_type', 'automatic_ad_watched')
-        .eq('activity_date', today);
-
-      if (error) throw error;
-      return data?.length || 0;
-    } catch (error) {
-      console.error('Error getting user ads watched today:', error);
-      return 0;
-    }
-  }
-
-  async incrementAdsWatched(telegramId: string): Promise<void> {
-    try {
-      // Get current user data first
-      const user = await this.getUserByTelegramId(telegramId);
-      if (!user) return;
-
-      const newCount = (user.ads_watched_today || 0) + 1;
-      await supabase
-        .from('users')
-        .update({ 
-          ads_watched_today: newCount,
-          last_activity_date: new Date().toISOString().split('T')[0]
-        })
-        .eq('telegram_id', telegramId);
-    } catch (error) {
-      console.error('Error incrementing ads watched:', error);
-    }
-  }
-
   async incrementUserAdsWatched(telegramId: string): Promise<boolean> {
     try {
-      // First get the current user data
-      const user = await this.getUserByTelegramId(telegramId);
-      if (!user) {
-        console.error('User not found for telegram ID:', telegramId);
-        return false;
-      }
-
-      const today = new Date().toDateString();
-      const isNewDay = user.last_activity_date !== today;
-      
-      console.log('Incrementing ads watched:', {
-        telegramId,
-        currentCount: user.ads_watched_today,
-        isNewDay,
-        today,
-        lastActivity: user.last_activity_date
+      // Use database function for atomic increment
+      const { data, error } = await supabase.rpc('increment_ads_watched', {
+        user_telegram_id: telegramId
       });
-      
-      const newAdsCount = isNewDay ? 1 : (user.ads_watched_today || 0) + 1;
-      
-      const { error } = await supabase
-        .from('users')
-        .update({
-          ads_watched_today: newAdsCount,
-          last_activity_date: today,
-          updated_at: new Date().toISOString()
-        })
-        .eq('telegram_id', telegramId);
 
       if (error) {
-        console.error('Error updating ads watched:', error);
+        console.error('Error incrementing ads watched:', error);
         return false;
       }
 
-      console.log(`✅ Successfully updated ads watched for ${telegramId}: ${newAdsCount}`);
+      console.log(`✅ Successfully updated ads watched for ${telegramId}`);
       return true;
     } catch (error) {
       console.error('Error incrementing ads watched:', error);
@@ -476,45 +376,40 @@ export class DatabaseService {
     }
   }
 
-  async convertEarningsToDeposit(userId: string, amount: number): Promise<boolean> {
+  async convertEarningsToDeposit(telegramId: string, amount: number): Promise<boolean> {
     try {
-      const user = await this.getUserByTelegramId(userId);
+      // Get conversion fee
+      const conversionFeeStr = await this.getAdminSetting('conversion_fee_percentage');
+      const conversionFee = parseFloat(conversionFeeStr) || 0.1;
+      
+      // Calculate the fee and final amount
+      const fee = amount * conversionFee;
+      const finalAmount = amount - fee;
+      
+      // Get current user data
+      const user = await this.getUserByTelegramId(telegramId);
       if (!user) return false;
-
-      const settings = await this.getAdminSettings();
-      const feePercentage = parseFloat(settings.conversion_fee_percentage || '0.1');
-      const feeAmount = amount * feePercentage;
-      const convertAmount = amount - feeAmount;
-
+      
       if (user.balance < amount) return false;
-
-      // Update balances
-      const newBalance = user.balance - amount;
-      const newDepositBalance = (user.deposit_balance || 0) + convertAmount;
-
+      
+      // Update both balances in a transaction
       const { error } = await supabase
         .from('users')
         .update({
-          balance: newBalance,
-          deposit_balance: newDepositBalance,
+          balance: user.balance - amount,
+          deposit_balance: (user.deposit_balance || 0) + finalAmount,
           updated_at: new Date().toISOString()
         })
-        .eq('telegram_id', userId);
+        .eq('telegram_id', telegramId);
 
       if (error) throw error;
 
       // Log the conversion
-      await supabase
-        .from('balance_conversions')
-        .insert({
-          user_id: userId,
-          amount_converted: amount,
-          conversion_fee: feeAmount
-        });
-
+      await this.logActivity(telegramId, 'balance_conversion', amount);
+      
       return true;
     } catch (error) {
-      console.error('Error converting balance:', error);
+      console.error('Error converting earnings to deposit:', error);
       return false;
     }
   }
@@ -538,59 +433,34 @@ export class DatabaseService {
     }
   }
 
-  // Get detailed user statistics
-  async getUserStats(telegramId: string): Promise<{
-    adsWatched: number;
-    tasksCompleted: number;
-    referralCount: number;
-    totalWithdrawals: number;
-    totalEarnings: number;
-  }> {
+  // Admin functions
+  async getAllUsers(): Promise<User[]> {
     try {
-      // Get ads watched
-      const { data: adsData } = await supabase
-        .from('user_activities')
-        .select('amount')
-        .eq('telegram_id', telegramId)
-        .eq('activity_type', 'ad_watched');
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      // Get tasks completed
-      const { data: tasksData } = await supabase
-        .from('user_tasks')
-        .select('reward_earned')
-        .eq('user_id', telegramId);
-
-      // Get referrals
-      const { data: referralsData } = await supabase
-        .from('referrals')
-        .select('earnings')
-        .eq('referrer_telegram_id', telegramId);
-
-      // Get withdrawals
-      const { data: withdrawalsData } = await supabase
-        .from('withdrawal_requests')
-        .select('amount')
-        .eq('telegram_id', telegramId)
-        .eq('status', 'completed');
-
-      return {
-        adsWatched: adsData?.length || 0,
-        tasksCompleted: tasksData?.length || 0,
-        referralCount: referralsData?.length || 0,
-        totalWithdrawals: withdrawalsData?.length || 0,
-        totalEarnings: (adsData?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0) +
-                      (tasksData?.reduce((sum, item) => sum + (item.reward_earned || 0), 0) || 0) +
-                      (referralsData?.reduce((sum, item) => sum + (item.earnings || 0), 0) || 0)
-      };
+      if (error) throw error;
+      return data || [];
     } catch (error) {
-      console.error('Error getting user stats:', error);
-      return {
-        adsWatched: 0,
-        tasksCompleted: 0,
-        referralCount: 0,
-        totalWithdrawals: 0,
-        totalEarnings: 0
-      };
+      console.error('Error getting all users:', error);
+      return [];
+    }
+  }
+
+  async getAllDeposits(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_deposits')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting deposits:', error);
+      return [];
     }
   }
 
@@ -695,26 +565,6 @@ export class DatabaseService {
     }
   }
 
-  async createReferral(referrerTelegramId: string, referredTelegramId: string): Promise<boolean> {
-    return this.processReferral(referrerTelegramId, referredTelegramId);
-  }
-
-  async updateReferralEarnings(referrerTelegramId: string, referredTelegramId: string, earnings: number): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('referrals')
-        .update({ earnings })
-        .eq('referrer_telegram_id', referrerTelegramId)
-        .eq('referred_telegram_id', referredTelegramId);
-
-      return !error;
-    } catch (error) {
-      console.error('Error updating referral earnings:', error);
-      return false;
-    }
-  }
-
-  // IMPROVED getUserReferrals function
   async getUserReferrals(telegramId: string): Promise<ReferralDetail[]> {
     try {
       console.log('Getting referrals for user:', telegramId);
@@ -770,44 +620,6 @@ export class DatabaseService {
     }
   }
 
-  // Admin functions
-  async getAllUsers(): Promise<User[]> {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error getting all users:', error);
-      return [];
-    }
-  }
-
-  async adminUpdateUserBalance(telegramId: string, newBalance: number): Promise<boolean> {
-    return this.updateUserBalance(telegramId, newBalance);
-  }
-
-  async adminToggleWithdrawalEnabled(telegramId: string, enabled: boolean): Promise<boolean> {
-    try {
-      // For now, we'll use referral_count to determine withdrawal eligibility
-      // In a real app, you might have a separate field for this
-      const user = await this.getUserByTelegramId(telegramId);
-      if (!user) return false;
-
-      const requiredReferrals = enabled ? 0 : 999; // Set high number to disable
-      
-      // This is a workaround - in production you'd have a dedicated field
-      console.log(`Admin ${enabled ? 'enabled' : 'disabled'} withdrawal for user ${telegramId}`);
-      return true;
-    } catch (error) {
-      console.error('Error toggling withdrawal:', error);
-      return false;
-    }
-  }
-
   // Withdrawal operations
   async createWithdrawalRequest(data: Omit<WithdrawalRequest, 'id' | 'created_at' | 'updated_at'>): Promise<boolean> {
     try {
@@ -853,6 +665,48 @@ export class DatabaseService {
       return !error;
     } catch (error) {
       console.error('Error updating withdrawal status:', error);
+      return false;
+    }
+  }
+
+  async updateDepositStatus(depositId: string, status: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('user_deposits')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', depositId);
+
+      if (error) throw error;
+      
+      // If approved, update user's deposit balance
+      if (status === 'completed') {
+        const { data: deposit } = await supabase
+          .from('user_deposits')
+          .select('*')
+          .eq('id', depositId)
+          .single();
+
+        if (deposit) {
+          const user = await this.getUserByTelegramId(deposit.user_id);
+          if (user) {
+            const newDepositBalance = (user.deposit_balance || 0) + deposit.amount;
+            await supabase
+              .from('users')
+              .update({ 
+                deposit_balance: newDepositBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('telegram_id', deposit.user_id);
+          }
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating deposit status:', error);
       return false;
     }
   }
@@ -941,23 +795,7 @@ export class DatabaseService {
     return () => supabase.removeChannel(channel);
   }
 
-  async getUserActivities(telegramId: string): Promise<UserActivity[]> {
-    try {
-      const { data, error } = await supabase
-        .from('user_activities')
-        .select('*')
-        .eq('telegram_id', telegramId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error getting user activities:', error);
-      return [];
-    }
-  }
-
-  // Get referral statistics with enhanced logging
+  // Get referral statistics
   async getReferralStats(telegramId: string): Promise<{ count: number; earnings: number; referrals: any[] }> {
     try {
       console.log('📊 Getting referral stats for:', telegramId);
@@ -982,129 +820,6 @@ export class DatabaseService {
     } catch (error) {
       console.error('❌ Error getting referral stats:', error);
       return { count: 0, earnings: 0, referrals: [] };
-    }
-  }
-
-  // Deposit management methods
-  async getAllDeposits(): Promise<any[]> {
-    try {
-      const { data, error } = await supabase
-        .from('user_deposits')
-        .select(`
-          *,
-          users!inner(username, first_name, last_name)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error getting deposits:', error);
-      return [];
-    }
-  }
-
-  async updateDepositStatus(depositId: string, status: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('user_deposits')
-        .update({ 
-          status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', depositId);
-
-      if (error) throw error;
-      
-      // If approved, update user's deposit balance
-      if (status === 'completed') {
-        const { data: deposit } = await supabase
-          .from('user_deposits')
-          .select('*')
-          .eq('id', depositId)
-          .single();
-
-        if (deposit) {
-          const user = await this.getUserByTelegramId(deposit.user_id);
-          if (user) {
-            const newDepositBalance = (user.deposit_balance || 0) + deposit.amount;
-            await supabase
-              .from('users')
-              .update({ 
-                deposit_balance: newDepositBalance,
-                updated_at: new Date().toISOString()
-              })
-              .eq('telegram_id', deposit.user_id);
-          }
-        }
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Error updating deposit status:', error);
-      return false;
-    }
-  }
-
-  async createDeposit(userId: string, amount: number, method: string, transactionId?: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('user_deposits')
-        .insert({
-          user_id: userId,
-          amount,
-          deposit_method: method,
-          transaction_id: transactionId,
-          status: 'pending'
-        });
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error creating deposit:', error);
-      return false;
-    }
-  }
-
-
-  async convertEarningToDeposit(userId: string, amount: number): Promise<boolean> {
-    try {
-      const user = await this.getUserByTelegramId(userId);
-      if (!user) return false;
-
-      const fee = 0.1; // $0.1 conversion fee
-      const convertAmount = amount - fee;
-
-      if (user.balance < amount) return false;
-
-      // Update balances
-      const newBalance = user.balance - amount;
-      const newDepositBalance = (user.deposit_balance || 0) + convertAmount;
-
-      const { error } = await supabase
-        .from('users')
-        .update({
-          balance: newBalance,
-          deposit_balance: newDepositBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('telegram_id', userId);
-
-      if (error) throw error;
-
-      // Log the conversion
-      await supabase
-        .from('balance_conversions')
-        .insert({
-          user_id: userId,
-          amount_converted: amount,
-          conversion_fee: fee
-        });
-
-      return true;
-    } catch (error) {
-      console.error('Error converting balance:', error);
-      return false;
     }
   }
 
@@ -1134,6 +849,34 @@ export class DatabaseService {
     }
 
     return true;
+  }
+
+  // Missing methods for compatibility
+  async getUserAdsWatchedToday(telegramId: string): Promise<number> {
+    try {
+      const user = await this.getUserByTelegramId(telegramId);
+      return user?.ads_watched_today || 0;
+    } catch (error) {
+      console.error('Error getting ads watched today:', error);
+      return 0;
+    }
+  }
+
+  async updateUserDepositBalance(telegramId: string, newBalance: number): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ 
+          deposit_balance: newBalance, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('telegram_id', telegramId);
+
+      return !error;
+    } catch (error) {
+      console.error('Error updating deposit balance:', error);
+      return false;
+    }
   }
 }
 
