@@ -851,6 +851,109 @@ export class DatabaseService {
     return true;
   }
 
+  // Get all withdrawal requests
+  async getAllWithdrawalRequests(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('withdrawal_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting withdrawal requests:', error);
+      return [];
+    }
+  }
+
+  // Get all deposit requests  
+  async getAllDepositRequests(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_deposits')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting deposit requests:', error);
+      return [];
+    }
+  }
+
+  // Update withdrawal request status
+  async updateWithdrawalRequestStatus(requestId: string, status: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('withdrawal_requests')
+        .update({ 
+          status, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', requestId);
+
+      return !error;
+    } catch (error) {
+      console.error('Error updating withdrawal request:', error);
+      return false;
+    }
+  }
+
+  // Update deposit request status
+  async updateDepositRequestStatus(requestId: string, status: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('user_deposits')
+        .update({ 
+          status, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', requestId);
+
+      return !error;
+    } catch (error) {
+      console.error('Error updating deposit request:', error);
+      return false;
+    }
+  }
+
+  // Get user-uploaded tasks
+  async getUserUploadedTasks(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_created', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error getting user uploaded tasks:', error);
+      return [];
+    }
+  }
+
+  // Update user uploaded task status
+  async updateUserTaskStatus(taskId: string, status: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ 
+          status, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', taskId);
+
+      return !error;
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      return false;
+    }
+  }
+
   // Missing methods for compatibility
   async getUserAdsWatchedToday(telegramId: string): Promise<number> {
     try {

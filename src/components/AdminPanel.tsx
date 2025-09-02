@@ -1,13 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { BarChart3, Users, ListTodo, CreditCard, Monitor, Settings, Shield, Code, Activity } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  BarChart3, 
+  Users, 
+  Settings, 
+  CreditCard, 
+  Shield, 
+  ListTodo, 
+  Monitor, 
+  Activity, 
+  Code, 
+  Trash2, 
+  Eye, 
+  Edit,
+  ArrowUpRight,
+  ArrowDownRight,
+  Upload,
+  CheckCircle,
+  XCircle,
+  Clock
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { dbService, User, WithdrawalRequest } from '@/services/database';
 import { taskService, Task } from '@/services/taskService';
@@ -15,6 +32,9 @@ import ChannelManagement from './ChannelManagement';
 import PaymentMethodsManager from './PaymentMethodsManager';
 import AdCodeManager from './AdCodeManager';
 import HtmlAdManager from './HtmlAdManager';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 
 const AdminPanel = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -29,6 +49,8 @@ const AdminPanel = () => {
   const [deviceVerificationEnabled, setDeviceVerificationEnabled] = useState(true);
   const [monetizationCode, setMonetizationCode] = useState('');
   const [deviceTrackingData, setDeviceTrackingData] = useState<any[]>([]);
+  const [depositRequests, setDepositRequests] = useState<any[]>([]);
+  const [userTasks, setUserTasks] = useState<any[]>([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalBalance: 0,
@@ -39,9 +61,62 @@ const AdminPanel = () => {
   });
   const { toast } = useToast();
 
+  const loadWithdrawalRequests = async () => {
+    try {
+      const requests = await dbService.getAllWithdrawalRequests();
+      setWithdrawalRequests(requests);
+    } catch (error) {
+      console.error('Error loading withdrawal requests:', error);
+    }
+  };
+
+  const loadDepositRequests = async () => {
+    try {
+      const requests = await dbService.getAllDepositRequests();
+      setDepositRequests(requests);
+    } catch (error) {
+      console.error('Error loading deposit requests:', error);
+    }
+  };
+
+  const loadUserTasks = async () => {
+    try {
+      const tasks = await dbService.getUserUploadedTasks();
+      setUserTasks(tasks);
+    } catch (error) {
+      console.error('Error loading user tasks:', error);
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const usersData = await dbService.getAllUsers();
+      setUsers(usersData);
+      
+      // Calculate stats
+      const totalBalance = usersData.reduce((sum, user) => sum + (user.balance || 0), 0);
+      const totalReferrals = usersData.reduce((sum, user) => sum + (user.referral_count || 0), 0);
+      
+      setStats(prev => ({
+        ...prev,
+        totalUsers: usersData.length,
+        totalBalance,
+        totalReferrals
+      }));
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadStats();
     loadAdminSettings();
+    loadWithdrawalRequests();
+    loadDepositRequests();
+    loadUserTasks();
   }, []);
 
   const loadStats = async () => {
@@ -249,6 +324,9 @@ const AdminPanel = () => {
             { id: 'users', label: 'Users', icon: Users },
             { id: 'devices', label: 'Devices', icon: Shield },
             { id: 'tasks', label: 'Tasks', icon: ListTodo },
+            { id: 'user-tasks', label: 'User Tasks', icon: Upload },
+            { id: 'withdrawals', label: 'Withdrawals', icon: ArrowUpRight },
+            { id: 'deposits', label: 'Deposits', icon: ArrowDownRight },
             { id: 'payments', label: 'Payments', icon: CreditCard },
             { id: 'ads', label: 'Ads', icon: Monitor },
             { id: 'htmlads', label: 'HTML Ads', icon: Code },
@@ -467,6 +545,270 @@ const AdminPanel = () => {
               </Card>
             </div>
           </div>
+        )}
+
+        {activeTab === 'withdrawals' && (
+          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center space-x-2">
+                <ArrowUpRight className="w-5 h-5" />
+                <span>Withdrawal Request Management</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-3 px-4 text-gray-300">User</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Amount</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Method</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Wallet</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Date</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {withdrawalRequests.map((request) => (
+                      <tr key={request.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="text-white font-medium">{request.username}</p>
+                            <p className="text-gray-400 text-xs">ID: {request.telegram_id}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-green-400 font-bold">${request.amount}</td>
+                        <td className="py-3 px-4 text-gray-300">{request.withdrawal_method}</td>
+                        <td className="py-3 px-4">
+                          <p className="text-white text-xs font-mono">{request.wallet_address}</p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant={
+                            request.status === 'completed' ? 'default' : 
+                            request.status === 'pending' ? 'secondary' : 'destructive'
+                          }>
+                            {request.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-gray-400 text-xs">
+                          {new Date(request.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                const success = await dbService.updateWithdrawalRequestStatus(request.id, 'completed');
+                                if (success) {
+                                  loadWithdrawalRequests();
+                                  toast({ title: "Withdrawal approved" });
+                                }
+                              }}
+                              disabled={request.status === 'completed'}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={async () => {
+                                const success = await dbService.updateWithdrawalRequestStatus(request.id, 'rejected');
+                                if (success) {
+                                  loadWithdrawalRequests();
+                                  toast({ title: "Withdrawal rejected" });
+                                }
+                              }}
+                              disabled={request.status !== 'pending'}
+                            >
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'deposits' && (
+          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center space-x-2">
+                <ArrowDownRight className="w-5 h-5" />
+                <span>Deposit Request Management</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-3 px-4 text-gray-300">User</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Amount</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Method</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Transaction ID</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Date</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {depositRequests.map((request) => (
+                      <tr key={request.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="text-white font-medium">{request.user_id}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-blue-400 font-bold">${request.amount}</td>
+                        <td className="py-3 px-4 text-gray-300">{request.deposit_method}</td>
+                        <td className="py-3 px-4">
+                          <p className="text-white text-xs font-mono">{request.transaction_id || 'N/A'}</p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant={
+                            request.status === 'completed' ? 'default' : 
+                            request.status === 'pending' ? 'secondary' : 'destructive'
+                          }>
+                            {request.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-gray-400 text-xs">
+                          {new Date(request.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                const success = await dbService.updateDepositRequestStatus(request.id, 'completed');
+                                if (success) {
+                                  loadDepositRequests();
+                                  toast({ title: "Deposit approved" });
+                                }
+                              }}
+                              disabled={request.status === 'completed'}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={async () => {
+                                const success = await dbService.updateDepositRequestStatus(request.id, 'rejected');
+                                if (success) {
+                                  loadDepositRequests();
+                                  toast({ title: "Deposit rejected" });
+                                }
+                              }}
+                              disabled={request.status !== 'pending'}
+                            >
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'user-tasks' && (
+          <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center space-x-2">
+                <Upload className="w-5 h-5" />
+                <span>User Uploaded Tasks</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-3 px-4 text-gray-300">Task Info</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Creator</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Reward</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Budget</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {userTasks.map((task) => (
+                      <tr key={task.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="text-white font-medium">{task.title}</p>
+                            <p className="text-gray-400 text-xs">{task.description}</p>
+                            <p className="text-blue-400 text-xs">{task.task_url}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-white">{task.created_by_user}</td>
+                        <td className="py-3 px-4 text-green-400">${task.reward_amount}</td>
+                        <td className="py-3 px-4 text-blue-400">${task.total_budget}</td>
+                        <td className="py-3 px-4">
+                          <Badge variant={
+                            task.status === 'active' ? 'default' : 
+                            task.status === 'pending' ? 'secondary' : 'destructive'
+                          }>
+                            {task.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                const success = await dbService.updateUserTaskStatus(task.id, 'active');
+                                if (success) {
+                                  loadUserTasks();
+                                  toast({ title: "Task approved" });
+                                }
+                              }}
+                              disabled={task.status === 'active'}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={async () => {
+                                const success = await dbService.updateUserTaskStatus(task.id, 'rejected');
+                                if (success) {
+                                  loadUserTasks();
+                                  toast({ title: "Task rejected" });
+                                }
+                              }}
+                              disabled={task.status === 'rejected'}
+                            >
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {activeTab === 'tasks' && (
