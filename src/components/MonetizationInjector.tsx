@@ -5,6 +5,17 @@ const MonetizationInjector = () => {
   useEffect(() => {
     const injectMonetizationCode = async () => {
       try {
+        // Check if we're in Telegram WebView environment
+        const isTelegramWebView = window.Telegram?.WebApp || 
+          window.navigator.userAgent.includes('TelegramBot') ||
+          window.location.hostname.includes('telegram') ||
+          window.parent !== window;
+
+        if (isTelegramWebView) {
+          console.log('🚫 Skipping external ad injection in Telegram WebView environment');
+          return;
+        }
+
         const monetizationCode = await dbService.getAdminSetting('monetization_code');
         
         if (monetizationCode && monetizationCode.trim() !== '') {
@@ -14,7 +25,7 @@ const MonetizationInjector = () => {
             existingScript.remove();
           }
 
-          // Create and inject the monetization code
+          // Create and inject the monetization code (only for non-Telegram environments)
           const scriptElement = document.createElement('div');
           scriptElement.id = 'monetization-injector';
           scriptElement.innerHTML = monetizationCode;
@@ -28,6 +39,9 @@ const MonetizationInjector = () => {
             const newScript = document.createElement('script');
             if (script.src) {
               newScript.src = script.src;
+              newScript.onerror = () => {
+                console.warn('Failed to load external ad script:', script.src);
+              };
             } else {
               newScript.textContent = script.textContent;
             }

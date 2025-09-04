@@ -57,6 +57,17 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
   const showMonetagAd = () => {
     if (!userInfo?.telegram_id) return;
     
+    // Check if we're in Telegram WebView environment
+    const isTelegramWebView = window.Telegram?.WebApp || 
+      window.navigator.userAgent.includes('TelegramBot') ||
+      window.location.hostname.includes('telegram') ||
+      window.parent !== window;
+
+    if (isTelegramWebView) {
+      console.log('🚫 Skipping external ad display in Telegram WebView environment');
+      return;
+    }
+    
     // No daily limit for automatic interstitial ads
     console.log('Showing automatic Monetag interstitial ad');
     
@@ -103,15 +114,17 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
 
         <div className="bg-gray-700 rounded-lg p-4 mb-6 min-h-[200px] flex items-center justify-center">
           <div className="text-center w-full">
-            {monetagCode ? (
-              <div dangerouslySetInnerHTML={{ __html: monetagCode }} />
-            ) : (
-              <div className="text-white">
-                <div className="animate-pulse bg-gray-600 h-32 w-full rounded mb-4"></div>
-                <p className="text-sm">Monetag বিজ্ঞাপন</p>
-                <p className="text-xs text-gray-400">লোড হচ্ছে...</p>
+            <div className="text-white">
+              <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-32 w-full rounded mb-4 flex items-center justify-center">
+                <div className="text-center">
+                  <Gift className="w-12 h-12 text-white mx-auto mb-2" />
+                  <p className="text-white font-bold">Ads by USDT Earn</p>
+                  <p className="text-xs text-blue-200">Telegram Mini App Ad</p>
+                </div>
               </div>
-            )}
+              <p className="text-sm">বিজ্ঞাপন দেখার জন্য ধন্যবাদ!</p>
+              <p className="text-xs text-gray-400">টেলিগ্রাম মিনি অ্যাপে নিরাপদ বিজ্ঞাপন</p>
+            </div>
           </div>
         </div>
 

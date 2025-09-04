@@ -92,23 +92,36 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       return;
     }
 
-    // Initialize Monetag ad
-    try {
-      // Load Monetag ad script dynamically
-      if (typeof window !== 'undefined' && (window as any).show_9506527) {
-        (window as any).show_9506527();
-      }
-    } catch (error) {
-      console.error('Error loading Monetag ad:', error);
-    }
+    // Check if we're in Telegram WebView environment
+    const isTelegramWebView = window.Telegram?.WebApp || 
+      window.navigator.userAgent.includes('TelegramBot') ||
+      window.location.hostname.includes('telegram') ||
+      window.parent !== window;
 
-    setCountdown(15); // Standard ad duration
-    setIsWatching(true);
-    
-    toast({
-      title: "Ad Started!",
-      description: `Watch for 15 seconds to earn $${adReward.toFixed(3)}`,
-    });
+    if (isTelegramWebView) {
+      // For Telegram, show safe internal ad
+      setIsWatching(true);
+      setCountdown(10); // 10 second countdown for Telegram
+      toast({
+        title: "🎯 টেলিগ্রাম মিনি অ্যাপ বিজ্ঞাপন",
+        description: "নিরাপদ বিজ্ঞাপন দেখুন এবং USDT আয় করুন",
+      });
+    } else {
+      // For external environments, try to load Monetag
+      try {
+        // Load Monetag ad script dynamically
+        if (typeof window !== 'undefined' && (window as any).show_9506527) {
+          (window as any).show_9506527();
+        }
+        setIsWatching(true);
+        setCountdown(15);
+      } catch (error) {
+        console.error('Error loading external ad:', error);
+        // Fallback to internal ad
+        setIsWatching(true);
+        setCountdown(10);
+      }
+    }
   };
 
   const pauseAd = () => {
