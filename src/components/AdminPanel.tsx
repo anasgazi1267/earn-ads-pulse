@@ -262,8 +262,24 @@ const AdminPanel = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
-          <p className="text-gray-400">Manage your Telegram Mini App</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
+              <p className="text-gray-400">Manage your Telegram Mini App Platform</p>
+            </div>
+            {/* Special Admin ID Badge */}
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg p-4 border border-purple-500/30">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-white/10 rounded-full">
+                  <Shield className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-lg">7390932497</p>
+                  <p className="text-purple-200 text-xs">Super Admin ID</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards */}

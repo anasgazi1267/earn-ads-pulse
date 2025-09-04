@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Wallet, ArrowUpRight, ArrowDownRight, DollarSign, RefreshCw, CreditCard, Gift } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Wallet, ArrowUpRight, ArrowDownRight, DollarSign, RefreshCw, CreditCard, Gift, TrendingUp, Coins, ArrowLeft, ArrowRight } from 'lucide-react';
 import WithdrawPage from './WithdrawPage';
 import DepositPage from './DepositPage';
 import { dbService } from '../services/database';
@@ -37,9 +39,11 @@ const WalletPage: React.FC<WalletPageProps> = ({
 
   const loadWalletData = async () => {
     try {
-      if (userInfo?.telegram_id) {
-        const user = await dbService.getUserByTelegramId(userInfo.telegram_id);
+      if (userInfo?.telegram_id || userInfo?.id) {
+        const telegramId = userInfo.telegram_id || userInfo.id;
+        const user = await dbService.getUserByTelegramId(telegramId.toString());
         if (user) {
+          console.log('💰 Loaded user wallet data:', user);
           setDepositBalance(user.deposit_balance || 0);
           setReferralCount(user.referral_count || 0);
           // Update parent component with fresh balance data
@@ -83,35 +87,32 @@ const WalletPage: React.FC<WalletPageProps> = ({
 
     setLoading(true);
     try {
-      const success = await dbService.convertEarningsToDeposit(userInfo.telegram_id.toString(), amount);
+      const telegramId = userInfo.telegram_id || userInfo.id;
+      const success = await dbService.convertEarningsToDeposit(telegramId.toString(), amount);
       
       if (success) {
         const fee = amount * conversionFee;
         const convertedAmount = amount - fee;
         
-        // Update local state
-        updateUserBalance(userBalance - amount);
-        setDepositBalance(prev => prev + convertedAmount);
+        // Reload wallet data to get fresh balances
+        await loadWalletData();
         setConvertAmount('');
         
         toast({
-          title: "Conversion Successful",
-          description: `Converted ${amount.toFixed(3)} USDT to deposit balance (fee: ${fee.toFixed(3)} USDT)`,
+          title: "🎉 Conversion Successful!",
+          description: `Converted $${amount.toFixed(3)} earnings to deposit balance (fee: $${fee.toFixed(3)})`,
         });
-        
-        // Reload data to ensure accuracy
-        loadWalletData();
       } else {
         toast({
-          title: "Conversion Failed",
-          description: "Failed to convert earnings to deposit balance",
+          title: "❌ Conversion Failed",
+          description: "Failed to convert balance. Please try again.",
           variant: "destructive"
         });
       }
     } catch (error) {
-      console.error('Conversion error:', error);
+      console.error('Error converting balance:', error);
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: "An error occurred during conversion",
         variant: "destructive"
       });
@@ -125,205 +126,211 @@ const WalletPage: React.FC<WalletPageProps> = ({
     : true;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-background p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <Button
-              onClick={onBack}
-              variant="ghost"
-              className="hover:bg-muted/50"
-            >
-              ← Back
-            </Button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
+      {/* Professional Header */}
+      <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-md border-b border-gray-700/50">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Wallet className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">My Wallet</h1>
-                <p className="text-muted-foreground">Manage your earnings and deposits</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="text-gray-300 hover:text-white hover:bg-gray-800/50 transition-all duration-200"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <div className="h-6 w-px bg-gray-600"></div>
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                  <Wallet className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold text-white">Wallet Dashboard</h1>
+                  <p className="text-xs text-gray-400">Manage your earnings & deposits</p>
+                </div>
               </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadWalletData}
+              disabled={loading}
+              className="border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white transition-all duration-200"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
-          <Button
-            onClick={loadWalletData}
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
         </div>
+      </div>
 
-        {/* Balance Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="relative overflow-hidden">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-3">
-                <div className="p-2 bg-yellow-500/10 rounded-lg">
-                  <Gift className="w-5 h-5 text-yellow-500" />
+      {/* Professional Balance Overview */}
+      <div className="p-4 space-y-6">
+        {/* Main Balance Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Earnings Balance */}
+          <Card className="relative overflow-hidden bg-gradient-to-br from-emerald-500/10 via-green-600/5 to-green-800/10 border border-emerald-500/20 backdrop-blur-sm hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/5 to-transparent"></div>
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <p className="text-emerald-300 text-sm font-medium">Available Earnings</p>
+                  </div>
+                  <p className="text-3xl font-bold text-white tracking-tight">${userBalance.toFixed(3)}</p>
+                  <p className="text-emerald-400 text-xs flex items-center space-x-1">
+                    <TrendingUp className="w-3 h-3" />
+                    <span>Ready to convert</span>
+                  </p>
                 </div>
-                <div>
-                  <span className="text-lg">Earnings Balance</span>
-                  <p className="text-sm text-muted-foreground">From ads, tasks & referrals</p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <p className="text-4xl font-bold text-yellow-500">
-                  ${userBalance.toFixed(3)}
-                </p>
-                <div className="text-sm text-muted-foreground">
-                  Can be converted to deposit balance
+                <div className="p-4 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 rounded-2xl">
+                  <Coins className="w-7 h-7 text-emerald-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-3">
-                <div className="p-2 bg-green-500/10 rounded-lg">
-                  <CreditCard className="w-5 h-5 text-green-500" />
+          {/* Deposit Balance */}
+          <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/10 via-blue-600/5 to-blue-800/10 border border-blue-500/20 backdrop-blur-sm hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/5 to-transparent"></div>
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                    <p className="text-blue-300 text-sm font-medium">Deposit Balance</p>
+                  </div>
+                  <p className="text-3xl font-bold text-white tracking-tight">${depositBalance.toFixed(3)}</p>
+                  <p className="text-blue-400 text-xs flex items-center space-x-1">
+                    <ArrowUpRight className="w-3 h-3" />
+                    <span>Withdrawal ready</span>
+                  </p>
                 </div>
-                <div>
-                  <span className="text-lg">Deposit Balance</span>
-                  <p className="text-sm text-muted-foreground">Available for withdrawal</p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <p className="text-4xl font-bold text-green-500">
-                  ${depositBalance.toFixed(3)}
-                </p>
-                <div className="text-sm text-muted-foreground">
-                  Ready to withdraw
+                <div className="p-4 bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-2xl">
+                  <CreditCard className="w-7 h-7 text-blue-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-3">
-                <div className="p-2 bg-purple-500/10 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-purple-500" />
+          {/* Total Portfolio Value */}
+          <Card className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 via-purple-600/5 to-purple-800/10 border border-purple-500/20 backdrop-blur-sm hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-400/5 to-transparent"></div>
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                    <p className="text-purple-300 text-sm font-medium">Total Portfolio</p>
+                  </div>
+                  <p className="text-3xl font-bold text-white tracking-tight">${(userBalance + depositBalance).toFixed(3)}</p>
+                  <p className="text-purple-400 text-xs flex items-center space-x-1">
+                    <Gift className="w-3 h-3" />
+                    <span>Combined value</span>
+                  </p>
                 </div>
-                <div>
-                  <span className="text-lg">Total Value</span>
-                  <p className="text-sm text-muted-foreground">Combined balance</p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <p className="text-4xl font-bold text-purple-500">
-                  ${(userBalance + depositBalance).toFixed(3)}
-                </p>
-                <div className="text-sm text-muted-foreground">
-                  Earnings + Deposit
+                <div className="p-4 bg-gradient-to-br from-purple-500/20 to-purple-600/10 rounded-2xl">
+                  <Wallet className="w-7 h-7 text-purple-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Balance Conversion Section */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <ArrowDownRight className="w-5 h-5 text-blue-500" />
+        {/* Advanced Balance Conversion System */}
+        <Card className="relative overflow-hidden bg-gradient-to-br from-orange-500/10 via-amber-600/5 to-yellow-800/10 border border-orange-500/20 backdrop-blur-sm">
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-400/5 to-transparent"></div>
+          <CardHeader className="relative">
+            <CardTitle className="text-white flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-r from-orange-500 to-amber-600 rounded-lg">
+                <ArrowRight className="w-5 h-5 text-white" />
               </div>
               <div>
-                <span className="text-xl">Convert Earnings to Deposit</span>
-                <p className="text-sm text-muted-foreground">Convert your earnings to withdrawable balance</p>
+                <span className="text-lg font-bold">Earnings Balance Converter</span>
+                <p className="text-orange-300 text-sm font-normal">Convert your earnings to withdrawable deposit balance</p>
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-              <div className="flex items-start space-x-3">
-                <div className="p-1 bg-amber-500/10 rounded">
-                  <ArrowDownRight className="w-4 h-4 text-amber-600" />
+          <CardContent className="relative space-y-6">
+            {/* Conversion Form */}
+            <div className="bg-gray-800/40 rounded-xl p-6 border border-gray-700/50">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label className="text-gray-300 text-sm font-medium flex items-center space-x-2">
+                    <Coins className="w-4 h-4 text-orange-400" />
+                    <span>Amount to Convert (USDT)</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={convertAmount}
+                      onChange={(e) => setConvertAmount(e.target.value)}
+                      placeholder="0.000"
+                      className="bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 text-lg font-medium pl-12 h-12 focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
+                      step="0.001"
+                      max={userBalance}
+                    />
+                    <DollarSign className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">Available: ${userBalance.toFixed(3)}</span>
+                    <button
+                      onClick={() => setConvertAmount(userBalance.toString())}
+                      className="text-orange-400 hover:text-orange-300 transition-colors"
+                    >
+                      Use Max
+                    </button>
+                  </div>
                 </div>
-                <div className="text-sm">
-                  <p className="font-medium text-amber-800 dark:text-amber-200 mb-1">
-                    Conversion Notice
-                  </p>
-                  <p className="text-amber-700 dark:text-amber-300">
-                    Converting earnings incurs a {(conversionFee * 100).toFixed(1)}% fee. 
-                    Only deposit balance can be withdrawn to external wallets.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">
-                  Amount to Convert (USDT)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    max={userBalance}
-                    value={convertAmount}
-                    onChange={(e) => setConvertAmount(e.target.value)}
-                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Enter amount to convert..."
-                  />
+                
+                <div className="flex flex-col justify-center">
                   <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setConvertAmount(userBalance.toString())}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs"
+                    onClick={handleConvertBalance}
+                    disabled={loading || !convertAmount || parseFloat(convertAmount) <= 0 || parseFloat(convertAmount) > userBalance}
+                    className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-orange-500/25 h-12"
                   >
-                    Max
+                    {loading ? (
+                      <div className="flex items-center space-x-2">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Converting...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <ArrowRight className="w-4 h-4" />
+                        <span>Convert Now</span>
+                      </div>
+                    )}
                   </Button>
                 </div>
               </div>
-              <div className="flex flex-col justify-end">
-                <Button
-                  onClick={handleConvertBalance}
-                  disabled={loading || !convertAmount || parseFloat(convertAmount) <= 0 || parseFloat(convertAmount) > userBalance}
-                  className="w-full h-[52px]"
-                  size="lg"
-                >
-                  {loading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                  ) : (
-                    <>
-                      <ArrowDownRight className="w-4 h-4 mr-2" />
-                      Convert Now
-                    </>
-                  )}
-                </Button>
-              </div>
             </div>
-
-            {convertAmount && parseFloat(convertAmount) > 0 && (
-              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                <h4 className="font-medium">Conversion Summary</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Convert Amount:</span>
-                    <span className="font-medium">${parseFloat(convertAmount).toFixed(3)}</span>
+            
+            {/* Conversion Preview */}
+            {convertAmount && parseFloat(convertAmount) > 0 && parseFloat(convertAmount) <= userBalance && (
+              <div className="bg-gradient-to-r from-gray-800/60 to-gray-700/60 rounded-xl p-6 border border-gray-600/50">
+                <h4 className="text-white font-bold text-lg mb-4 flex items-center space-x-2">
+                  <TrendingUp className="w-5 h-5 text-green-400" />
+                  <span>Conversion Preview</span>
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+                    <p className="text-gray-400 text-xs mb-1">Converting Amount</p>
+                    <p className="text-white font-bold text-lg">${parseFloat(convertAmount).toFixed(3)}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Conversion Fee ({(conversionFee * 100).toFixed(1)}%):</span>
-                    <span className="font-medium text-red-500">-${(parseFloat(convertAmount) * conversionFee).toFixed(3)}</span>
+                  <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/30">
+                    <p className="text-red-300 text-xs mb-1">Platform Fee ({(conversionFee * 100).toFixed(1)}%)</p>
+                    <p className="text-red-400 font-bold text-lg">-${(parseFloat(convertAmount) * conversionFee).toFixed(3)}</p>
                   </div>
-                  <div className="flex justify-between pt-2 border-t">
-                    <span className="font-medium">You'll Receive:</span>
-                    <span className="font-bold text-green-500">${(parseFloat(convertAmount) * (1 - conversionFee)).toFixed(3)}</span>
+                  <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/30">
+                    <p className="text-green-300 text-xs mb-1">You'll Receive</p>
+                    <p className="text-green-400 font-bold text-lg">${(parseFloat(convertAmount) * (1 - conversionFee)).toFixed(3)}</p>
+                  </div>
+                  <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/30">
+                    <p className="text-blue-300 text-xs mb-1">Remaining Earnings</p>
+                    <p className="text-blue-400 font-bold text-lg">${(userBalance - parseFloat(convertAmount)).toFixed(3)}</p>
                   </div>
                 </div>
               </div>
@@ -331,27 +338,33 @@ const WalletPage: React.FC<WalletPageProps> = ({
           </CardContent>
         </Card>
 
-        {/* Main Wallet Actions */}
-        <Card>
+        {/* Professional Wallet Operations */}
+        <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <CreditCard className="w-5 h-5 text-primary" />
+            <CardTitle className="text-white flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                <CreditCard className="w-5 h-5 text-white" />
               </div>
               <div>
-                <span className="text-xl">Wallet Operations</span>
-                <p className="text-sm text-muted-foreground">Deposit funds or withdraw your earnings</p>
+                <span className="text-lg font-bold">Wallet Operations</span>
+                <p className="text-blue-300 text-sm font-normal">Deposit funds or withdraw your balance</p>
               </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="deposit" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="deposit">
+              <TabsList className="grid w-full grid-cols-2 bg-gray-700/50 border border-gray-600/50">
+                <TabsTrigger 
+                  value="deposit" 
+                  className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-300 transition-all duration-200"
+                >
                   <ArrowDownRight className="w-4 h-4 mr-2" />
                   Deposit Funds
                 </TabsTrigger>
-                <TabsTrigger value="withdraw">
+                <TabsTrigger 
+                  value="withdraw"
+                  className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-gray-300 transition-all duration-200"
+                >
                   <ArrowUpRight className="w-4 h-4 mr-2" />
                   Withdraw Funds
                 </TabsTrigger>
