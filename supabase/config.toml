@@ -1,1 +1,68 @@
 project_id = "xnkjndmkqsynblndaqzw"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[db.pooler]
+enabled = false
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+ip_version = "ipv6"
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+s3_credentials_access_key_id = "625729a08b95bf1b7ff351a663f3a23c"
+s3_credentials_secret_access_key = "850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aeda71a9d4804ca4b5"
+s3_credentials_region = "local"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+jwt_expiry = 3600
+refresh_token_rotation_enabled = true
+refresh_token_reuse_interval = 10
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+ip_version = "ipv6"
+port = 54321
+inspector_port = 8083
+
+[analytics]
+enabled = false
+
+[functions.telegram-verify-channel]
+verify_jwt = false
+
+[functions.telegram-bot-notify]
+verify_jwt = false

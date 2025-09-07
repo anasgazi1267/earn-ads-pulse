@@ -368,6 +368,17 @@ export class DatabaseService {
         .from('user_deposits')
         .insert(depositData);
 
+      // Send notification to user
+      if (!error && depositData.user_id) {
+        await supabase.functions.invoke('telegram-bot-notify', {
+          body: {
+            telegramId: depositData.user_id,
+            type: 'deposit',
+            message: `💰 Deposit Request Submitted!\nAmount: ${depositData.amount} USDT\nMethod: ${depositData.deposit_method}\n${depositData.transaction_id ? `Transaction ID: ${depositData.transaction_id}\n` : ''}Status: Pending ⏳\n\nYour request is being processed and will be reviewed by our team.`
+          }
+        });
+      }
+
       if (error) throw error;
       return true;
     } catch (error) {
@@ -626,6 +637,17 @@ export class DatabaseService {
       const { error } = await supabase
         .from('withdrawal_requests')
         .insert(data);
+
+      // Send notification to user
+      if (!error) {
+        await supabase.functions.invoke('telegram-bot-notify', {
+          body: {
+            telegramId: data.telegram_id,
+            type: 'withdrawal',
+            message: `💸 Withdrawal Request Received!\nAmount: ${data.amount} USDT\nMethod: ${data.withdrawal_method}\nWallet: ${data.wallet_address}\nStatus: Processing ⏳\n\nWe'll notify you once your withdrawal is processed!`
+          }
+        });
+      }
 
       return !error;
     } catch (error) {

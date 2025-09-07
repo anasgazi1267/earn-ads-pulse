@@ -230,6 +230,39 @@ const UserTaskUploadPage: React.FC<UserTaskUploadPageProps> = ({ userInfo, onBac
           </Button>
         </div>
 
+        {/* Bot Admin Warning for Telegram Campaigns */}
+        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <div className="text-orange-500 mt-1">⚠️</div>
+              <div className="space-y-2">
+                <h3 className="font-semibold text-orange-800 dark:text-orange-200">
+                  🔔 Telegram Campaign Setup Required
+                </h3>
+                <p className="text-sm text-orange-700 dark:text-orange-300">
+                  To activate automatic join verification and reward users with coins, please add our bot <strong>@Ads_Usdt_earn_bot</strong> as an admin in your Telegram channel.
+                </p>
+                <div className="text-xs text-orange-600 dark:text-orange-400 space-y-1">
+                  <p><strong>Why is this required?</strong></p>
+                  <p>✅ Our system uses Telegram's API to confirm whether users have successfully joined your channel.</p>
+                  <p>🚫 Without admin access, the bot cannot verify membership status.</p>
+                </div>
+                <div className="text-xs text-orange-600 dark:text-orange-400 space-y-1">
+                  <p><strong>How to add @Ads_Usdt_earn_bot:</strong></p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Open your Telegram channel settings</li>
+                    <li>Go to "Administrators"</li>
+                    <li>Tap "Add Admin" and search for @Ads_Usdt_earn_bot</li>
+                    <li>Grant basic permissions (no message access needed)</li>
+                    <li>Save changes</li>
+                  </ol>
+                  <p className="mt-2">Once added, your campaign will be verified automatically and users will start earning coins for joining your channel! 🚀</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {activeTab === 'upload' ? (
           /* Upload Task Form */
           <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">

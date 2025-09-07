@@ -64,12 +64,85 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
     setCompletingTask(task.id);
     
     try {
-      // Open task URL
-      window.open(task.task_url, '_blank');
-      
-      // Wait a bit for user to complete the task
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      // Handle YouTube videos specially - embed them in the current window
+      if (task.task_url.includes('youtube.com') || task.task_url.includes('youtu.be')) {
+        // Convert YouTube URL to embed format
+        const videoId = task.task_url.includes('youtube.com') 
+          ? new URL(task.task_url).searchParams.get('v')
+          : task.task_url.split('/').pop();
+        
+        const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        
+        // Create an iframe overlay for YouTube videos
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.9);
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        `;
+        
+        const iframe = document.createElement('iframe');
+        iframe.src = embedUrl;
+        iframe.style.cssText = `
+          width: 90%;
+          height: 80%;
+          max-width: 800px;
+          border: none;
+          border-radius: 10px;
+        `;
+        
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close & Complete Task';
+        closeButton.style.cssText = `
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          background: #10b981;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: bold;
+        `;
+        
+        overlay.appendChild(iframe);
+        overlay.appendChild(closeButton);
+        document.body.appendChild(overlay);
+        
+        closeButton.onclick = () => {
+          document.body.removeChild(overlay);
+          completeTaskProcess(task);
+        };
+      } else {
+        // For other URLs, open in new tab
+        window.open(task.task_url, '_blank');
+        
+        // Wait for user to complete the task
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await completeTaskProcess(task);
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete task. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setCompletingTask(null);
+    }
+  };
+
+  const completeTaskProcess = async (task: Task) => {
+    try {
       // Complete the task
       const success = await taskService.completeTask(
         userInfo.id.toString(),
@@ -85,6 +158,16 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
         setTasks(prev => prev.filter(t => t.id !== task.id));
         setCompletedTasks(prev => new Set([...prev, task.id]));
         
+        // Send earning notification
+        const { supabase } = await import('@/integrations/supabase/client');
+        await supabase.functions.invoke('telegram-bot-notify', {
+          body: {
+            telegramId: userInfo.telegram_id,
+            type: 'earning',
+            message: `🎉 Task Completed Successfully!\n\n💰 You earned: ${task.reward_amount.toFixed(3)} USDT\n📝 Task: ${task.title}\n\n💎 Keep completing tasks to earn more USDT!`
+          }
+        });
+        
         toast({
           title: "Task Completed! 🎉",
           description: `You earned $${task.reward_amount.toFixed(3)} USDT`,
@@ -97,14 +180,8 @@ const TasksPage: React.FC<TasksPageProps> = ({ userInfo, userBalance, updateUser
         });
       }
     } catch (error) {
-      console.error('Error completing task:', error);
-      toast({
-        title: "Error",
-        description: "Failed to complete task",
-        variant: "destructive"
-      });
-    } finally {
-      setCompletingTask(null);
+      console.error('Error in task completion process:', error);
+      throw error;
     }
   };
 

@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, CheckCircle, ExternalLink } from 'lucide-react';
+import { Users, CheckCircle, ExternalLink, Clock, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { channelService, Channel } from '@/services/channelService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface JoinChannelsPageProps {
   onChannelsJoined: () => void;
@@ -13,8 +14,9 @@ interface JoinChannelsPageProps {
 const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ onChannelsJoined }) => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [joinedChannels, setJoinedChannels] = useState<Set<string>>(new Set());
-  const [verifying, setVerifying] = useState(false);
-  const [hasVerified, setHasVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [verificationAttempts, setVerificationAttempts] = useState(0);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -51,7 +53,9 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ onChannelsJoined })
   };
 
   const handleVerifyJoin = async () => {
-    if (joinedChannels.size < channels.length) {
+    const allChannelsJoined = joinedChannels.size >= channels.length;
+    
+    if (!allChannelsJoined) {
       toast({
         title: "Incomplete",
         description: `Please join all ${channels.length} channels first`,
@@ -59,34 +63,95 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ onChannelsJoined })
       });
       return;
     }
-
-    // First verification attempt - show loading but don't complete
-    if (!hasVerified) {
-      setVerifying(true);
-      setTimeout(() => {
-        setVerifying(false);
-        setHasVerified(true);
+    
+    setIsVerifying(true);
+    try {
+      // Get user's Telegram ID from localStorage or user context
+      const telegramId = localStorage.getItem('user_telegram_id');
+      
+      if (!telegramId) {
+        console.error('No Telegram ID found');
         toast({
-          title: "Try Again",
-          description: "Click verify again to complete verification",
-          variant: "default"
+          title: "Error", 
+          description: "User information not found",
+          variant: "destructive"
         });
-      }, 3000);
-      return;
-    }
+        setIsVerifying(false);
+        return;
+      }
 
-    // Second verification attempt - complete the process
-    setVerifying(true);
-    setTimeout(() => {
-      localStorage.setItem('channelsJoined', 'true');
-      localStorage.setItem('channelJoinDate', new Date().toISOString());
-      setVerifying(false);
-      onChannelsJoined();
+      // Verify each channel automatically
+      let allVerified = true;
+      for (const channel of channels) {
+        try {
+          const response = await supabase.functions.invoke('telegram-verify-channel', {
+            body: {
+              userId: 'current_user',
+              channelUsername: channel.url.split('/').pop(), // Extract username from URL
+              telegramId: telegramId
+            }
+          });
+
+          if (response.error) {
+            console.error('Verification error:', response.error);
+            allVerified = false;
+            break;
+          }
+
+          const { isJoined } = response.data;
+          if (!isJoined) {
+            allVerified = false;
+            break;
+          }
+        } catch (error) {
+          console.error('Channel verification failed:', error);
+          allVerified = false;
+          break;
+        }
+      }
+
+      if (allVerified) {
+        setIsVerified(true);
+        setVerificationAttempts(1);
+        
+        // Store verification status in localStorage
+        localStorage.setItem('channels_joined', 'true');
+        localStorage.setItem('channels_join_date', new Date().toISOString());
+        
+        // Show final verification message
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setVerificationAttempts(2);
+        
+        // Send welcome notification
+        await supabase.functions.invoke('telegram-bot-notify', {
+          body: {
+            telegramId: telegramId,
+            type: 'welcome'
+          }
+        });
+        
+        // Complete the process
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        onChannelsJoined();
+      } else {
+        // Show error message if verification failed
+        toast({
+          title: "Verification Failed",
+          description: "Some channels are not joined yet. Please join all channels and try again.",
+          variant: "destructive"
+        });
+        setVerificationAttempts(0);
+      }
+    } catch (error) {
+      console.error('Verification failed:', error);
       toast({
-        title: "Success!",
-        description: "All channels verified. Welcome to Ads by USDT Earn!",
+        title: "Error",
+        description: "Verification failed. Please try again.",
+        variant: "destructive"
       });
-    }, 2500);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   if (loading) {
@@ -209,20 +274,21 @@ const JoinChannelsPage: React.FC<JoinChannelsPageProps> = ({ onChannelsJoined })
 
             <Button
               onClick={handleVerifyJoin}
-              disabled={joinedChannels.size < channels.length || verifying}
+              disabled={joinedChannels.size < channels.length || isVerifying}
               className="w-full h-12 text-base font-bold bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 transition-all duration-300"
             >
-              {verifying ? (
+              {isVerifying ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  {hasVerified ? 'Final Verification...' : 'Verifying Channels...'}
+                  {verificationAttempts === 0 ? 'Verifying Channels...' : 
+                   verificationAttempts === 1 ? 'Processing...' : 'Almost Done...'}
                 </>
               ) : joinedChannels.size < channels.length ? (
                 `Join ${channels.length - joinedChannels.size} more channels`
-              ) : hasVerified ? (
+              ) : isVerified ? (
                 'Complete & Enter App'
               ) : (
-                'Verify & Continue'
+                'Verify Channel Membership'
               )}
             </Button>
           </div>
