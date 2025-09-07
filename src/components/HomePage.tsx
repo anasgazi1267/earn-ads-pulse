@@ -73,20 +73,37 @@ const HomePage: React.FC<HomePageProps> = ({
         </div>
         
         {/* Balance Display */}
-        <Card className="bg-gradient-to-r from-green-600 to-blue-600 border-none">
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-white text-sm opacity-90 mb-2">Your Balance</p>
-              <div className="flex items-center justify-center space-x-2">
-                <DollarSign className="w-8 h-8 text-white" />
-                <span className="text-4xl font-bold text-white">
-                  {userBalance.toFixed(3)}
-                </span>
-                <span className="text-white text-lg">USDT</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="bg-gradient-to-r from-emerald-600 to-green-600 border-none">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <p className="text-white text-sm opacity-90 mb-2">Earnings Balance</p>
+                <div className="flex items-center justify-center space-x-2">
+                  <DollarSign className="w-6 h-6 text-white" />
+                  <span className="text-3xl font-bold text-white">
+                    {userBalance.toFixed(3)}
+                  </span>
+                  <span className="text-white text-sm">USDT</span>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-r from-blue-600 to-purple-600 border-none">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <p className="text-white text-sm opacity-90 mb-2">Deposit Balance</p>
+                <div className="flex items-center justify-center space-x-2">
+                  <DollarSign className="w-6 h-6 text-white" />
+                  <span className="text-3xl font-bold text-white">
+                    {(userInfo?.deposit_balance || 0).toFixed(3)}
+                  </span>
+                  <span className="text-white text-sm">USDT</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Stats Overview */}

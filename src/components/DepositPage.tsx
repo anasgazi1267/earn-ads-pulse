@@ -215,7 +215,7 @@ const DepositPage: React.FC<DepositPageProps> = ({ userInfo, onBack }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 p-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center mb-6">
@@ -231,10 +231,10 @@ const DepositPage: React.FC<DepositPageProps> = ({ userInfo, onBack }) => {
         </div>
 
         {/* Balance Conversion Card */}
-        <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50 mb-6">
+        <Card className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 backdrop-blur-xl border-emerald-500/20 shadow-xl shadow-emerald-500/10 mb-6">
           <CardHeader>
-            <CardTitle className="text-white flex items-center">
-              <Wallet className="w-5 h-5 mr-2" />
+            <CardTitle className="text-emerald-100 flex items-center text-xl">
+              <Wallet className="w-6 h-6 mr-3 text-emerald-400" />
               Convert Earnings Balance
             </CardTitle>
           </CardHeader>
@@ -285,10 +285,10 @@ const DepositPage: React.FC<DepositPageProps> = ({ userInfo, onBack }) => {
         </Card>
 
         {/* External Deposit Card */}
-        <Card className="bg-gray-800/50 backdrop-blur-xl border-gray-700/50">
+        <Card className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-xl border-blue-500/20 shadow-xl shadow-blue-500/10">
           <CardHeader>
-            <CardTitle className="text-white flex items-center">
-              <DollarSign className="w-5 h-5 mr-2" />
+            <CardTitle className="text-blue-100 flex items-center text-xl">
+              <DollarSign className="w-6 h-6 mr-3 text-blue-400" />
               External Deposit
             </CardTitle>
           </CardHeader>

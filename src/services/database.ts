@@ -965,8 +965,23 @@ export class DatabaseService {
     }
   }
 
-  async updateUserDepositBalance(telegramId: string, newBalance: number): Promise<boolean> {
+  async updateUserDepositBalance(telegramId: string, amountChange: number): Promise<boolean> {
     try {
+      // Get current user to calculate new balance
+      const user = await this.getUserByTelegramId(telegramId);
+      if (!user) {
+        console.error('User not found for deposit balance update');
+        return false;
+      }
+
+      const currentBalance = user.deposit_balance || 0;
+      const newBalance = currentBalance + amountChange; // Positive for deposit, negative for deduction
+
+      if (newBalance < 0) {
+        console.error('Insufficient deposit balance');
+        return false;
+      }
+
       const { error } = await supabase
         .from('users')
         .update({ 
@@ -975,7 +990,13 @@ export class DatabaseService {
         })
         .eq('telegram_id', telegramId);
 
-      return !error;
+      if (error) {
+        console.error('Database error updating deposit balance:', error);
+        return false;
+      }
+
+      console.log(`✅ Updated deposit balance for ${telegramId}: ${currentBalance} → ${newBalance} (change: ${amountChange})`);
+      return true;
     } catch (error) {
       console.error('Error updating deposit balance:', error);
       return false;
