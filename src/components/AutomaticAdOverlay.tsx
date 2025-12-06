@@ -16,6 +16,7 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
   const [dailyAdLimit, setDailyAdLimit] = useState(50);
   const [adsWatchedToday, setAdsWatchedToday] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [monetagZoneId, setMonetagZoneId] = useState('9506527');
 
   useEffect(() => {
     loadAdSettings();
@@ -27,8 +28,10 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
       const settings = await dbService.getAdminSettings();
       const interval = parseInt(settings.ad_interval_seconds || '30');
       const limit = parseInt(settings.daily_ad_limit || '50');
+      const zoneId = settings.monetag_zone_id || '9506527';
       setAdInterval(interval);
       setDailyAdLimit(limit);
+      setMonetagZoneId(zoneId);
     } catch (error) {
       console.error('Error loading ad settings:', error);
     }
@@ -59,14 +62,17 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
       return;
     }
 
-    // Initialize Monetag In-App Interstitial with provided settings
+    // Initialize Monetag In-App Interstitial with dynamic zone ID
     const initializeMonetagInApp = async () => {
       try {
-        if (typeof window.show_9506527 === 'function') {
+        const functionName = `show_${monetagZoneId}`;
+        console.log(`🎬 Looking for Monetag function: ${functionName}`);
+        
+        if (typeof (window as any)[functionName] === 'function') {
           console.log('🎬 Initializing Monetag In-App Interstitial...');
           
           // Use In-App Interstitial settings from user's code
-          await window.show_9506527({
+          await (window as any)[functionName]({
             type: 'inApp',
             inAppSettings: {
               frequency: 2,      // show 2 ads automatically
@@ -91,7 +97,7 @@ const AutomaticAdOverlay = ({ userInfo, onBalanceUpdate }: AutomaticAdOverlayPro
 
     // Wait a bit for SDK to load
     setTimeout(initializeMonetagInApp, 3000);
-  }, [userInfo, adInterval, isInitialized]);
+  }, [userInfo, adInterval, isInitialized, monetagZoneId]);
 
   // Log automatic ad views (Monetag handles display automatically)
   useEffect(() => {

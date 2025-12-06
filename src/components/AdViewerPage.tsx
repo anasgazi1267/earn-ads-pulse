@@ -19,10 +19,10 @@ import { useToast } from '@/hooks/use-toast';
 import { dbService } from '../services/database';
 import HtmlAdDisplay from './HtmlAdDisplay';
 
-// Declare global Monetag function
+// Declare global Monetag function with dynamic zone
 declare global {
   interface Window {
-    show_9506527?: (options?: {
+    monetagAdFunction?: (options?: {
       type?: string;
       inAppSettings?: {
         frequency: number;
@@ -32,6 +32,7 @@ declare global {
         everyPage: boolean;
       };
     }) => Promise<void>;
+    [key: string]: any;
   }
 }
 
@@ -54,31 +55,68 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [canWatch, setCanWatch] = useState(true);
   const [dailyLimit, setDailyLimit] = useState(100);
-  const [adReward] = useState(0.001);
+  const [adReward, setAdReward] = useState(0.001);
+  const [monetagZoneId, setMonetagZoneId] = useState('9506527');
   const [adScriptLoaded, setAdScriptLoaded] = useState(false);
   const { toast } = useToast();
 
-  // Check if Monetag SDK is loaded
+  // Load Monetag SDK with dynamic zone ID
   useEffect(() => {
-    const checkMonetagSDK = () => {
-      if (typeof window.show_9506527 === 'function') {
-        console.log('✅ Monetag SDK is loaded and ready');
+    const loadMonetagSDK = async () => {
+      // Check if we're NOT in Telegram WebView
+      const isTelegramWebView = window.Telegram?.WebApp || 
+        window.navigator.userAgent.includes('TelegramBot') ||
+        window.location.hostname.includes('telegram');
+
+      if (isTelegramWebView) {
+        console.log('📱 Telegram WebView detected - using internal ads');
+        return;
+      }
+
+      // Get zone ID from admin settings
+      const settings = await dbService.getAdminSettings();
+      const zoneId = settings.monetag_zone_id || '9506527';
+      setMonetagZoneId(zoneId);
+      
+      console.log(`🔧 Loading Monetag SDK with Zone ID: ${zoneId}`);
+
+      // Check if SDK is already loaded
+      const functionName = `show_${zoneId}`;
+      if (typeof window[functionName] === 'function') {
+        console.log('✅ Monetag SDK already loaded');
         setAdScriptLoaded(true);
-      } else {
-        console.log('⏳ Waiting for Monetag SDK...');
-        // Retry after 1 second
-        setTimeout(checkMonetagSDK, 1000);
+        return;
+      }
+
+      // Load SDK script dynamically
+      const existingScript = document.querySelector(`script[data-zone="${zoneId}"]`);
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.src = `//libtl.com/sdk.js`;
+        script.setAttribute('data-zone', zoneId);
+        script.setAttribute('data-sdk', functionName);
+        script.async = true;
+        
+        script.onload = () => {
+          console.log('✅ Monetag SDK script loaded');
+          // Wait for SDK to initialize
+          setTimeout(() => {
+            if (typeof window[functionName] === 'function') {
+              console.log(`✅ Monetag function ${functionName} is ready`);
+              setAdScriptLoaded(true);
+            }
+          }, 2000);
+        };
+        
+        script.onerror = (error) => {
+          console.error('❌ Failed to load Monetag SDK:', error);
+        };
+        
+        document.head.appendChild(script);
       }
     };
 
-    // Check if we're NOT in Telegram WebView
-    const isTelegramWebView = window.Telegram?.WebApp || 
-      window.navigator.userAgent.includes('TelegramBot') ||
-      window.location.hostname.includes('telegram');
-
-    if (!isTelegramWebView) {
-      checkMonetagSDK();
-    }
+    loadMonetagSDK();
   }, []);
 
   useEffect(() => {
@@ -90,7 +128,9 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     try {
       const settings = await dbService.getAdminSettings();
       const limit = parseInt(settings.daily_ad_limit || '100');
+      const reward = parseFloat(settings.ad_reward_amount || '0.001');
       setDailyLimit(limit);
+      setAdReward(reward);
     } catch (error) {
       console.error('Error loading ad settings:', error);
     }
@@ -151,11 +191,14 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       setIsLoading(true);
       
       try {
-        if (typeof window.show_9506527 === 'function') {
+        const functionName = `show_${monetagZoneId}`;
+        console.log(`🎬 Calling Monetag function: ${functionName}`);
+        
+        if (typeof window[functionName] === 'function') {
           console.log('🎬 Starting Monetag rewarded ad...');
           
           // Show Monetag rewarded interstitial
-          await window.show_9506527();
+          await window[functionName]();
           
           console.log('✅ Monetag ad completed!');
           
@@ -163,7 +206,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
           await handleAdCompleted();
           
         } else {
-          console.log('⚠️ Monetag function not available, using fallback');
+          console.log(`⚠️ Monetag function ${functionName} not available, using fallback`);
           // Fallback to countdown-based ad
           setIsWatching(true);
           setCountdown(15);
@@ -185,7 +228,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         setIsLoading(false);
       }
     }
-  }, [canWatch, dailyLimit, toast]);
+  }, [canWatch, dailyLimit, toast, monetagZoneId]);
 
   const pauseAd = () => {
     setIsWatching(false);
@@ -220,39 +263,48 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     setIsLoading(true);
     
     try {
+      console.log(`💰 Processing ad reward for user: ${userInfo.telegram_id}`);
+      
+      // First increment ads watched count using database function
+      const adSuccess = await dbService.incrementUserAdsWatched(userInfo.telegram_id);
+      console.log('📊 Ads watched increment result:', adSuccess);
+      
+      if (!adSuccess) {
+        console.error('❌ Failed to increment ads watched');
+        toast({
+          title: "Error",
+          description: "Failed to update ad count. Please try again.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       // Update user balance
       const newBalance = userBalance + adReward;
       const balanceSuccess = await dbService.updateUserBalance(userInfo.telegram_id, newBalance);
+      console.log('💵 Balance update result:', balanceSuccess, 'New balance:', newBalance);
       
       if (balanceSuccess) {
         updateUserBalance(newBalance);
         
-        // Increment ads watched count
-        const adSuccess = await dbService.incrementUserAdsWatched(userInfo.telegram_id);
-        if (adSuccess) {
-          const newAdsCount = adsWatchedToday + 1;
-          setAdsWatchedToday(newAdsCount);
-          updateAdsWatched(newAdsCount);
-          setCanWatch(newAdsCount < dailyLimit);
-          
-          // Log activity
-          await dbService.logActivity(userInfo.telegram_id, 'ad_watch', adReward);
-          
-          toast({
-            title: "Ad Completed!",
-            description: `You earned $${adReward.toFixed(3)} USDT!`,
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: "Failed to update ad count",
-            variant: "destructive"
-          });
-        }
+        const newAdsCount = adsWatchedToday + 1;
+        setAdsWatchedToday(newAdsCount);
+        updateAdsWatched(newAdsCount);
+        setCanWatch(newAdsCount < dailyLimit);
+        
+        // Log activity
+        await dbService.logActivity(userInfo.telegram_id, 'ad_watch', adReward);
+        
+        toast({
+          title: "বিজ্ঞাপন সম্পন্ন!",
+          description: `আপনি $${adReward.toFixed(3)} USDT আয় করেছেন!`,
+        });
       } else {
+        console.error('❌ Failed to update balance');
         toast({
           title: "Error",
-          description: "Failed to update balance",
+          description: "Failed to update balance. Please contact support.",
           variant: "destructive"
         });
       }
