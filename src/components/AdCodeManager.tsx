@@ -10,6 +10,8 @@ import { dbService } from '@/services/database';
 
 const AdCodeManager = () => {
   const [adSettings, setAdSettings] = useState({
+    monetag_zone_id: '9506527',
+    ad_reward_amount: '0.001',
     ad_interval_seconds: '20',
     daily_ad_limit: '100',
     banner_ad_code: '',
@@ -29,6 +31,8 @@ const AdCodeManager = () => {
       setLoading(true);
       const settings = await dbService.getAdminSettings();
       setAdSettings({
+        monetag_zone_id: settings.monetag_zone_id || '9506527',
+        ad_reward_amount: settings.ad_reward_amount || '0.001',
         ad_interval_seconds: settings.ad_interval_seconds || '20',
         daily_ad_limit: settings.daily_ad_limit || '100',
         banner_ad_code: settings.banner_ad_code || '',
@@ -115,6 +119,64 @@ const AdCodeManager = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Monetag Zone ID */}
+          <div className="p-4 bg-blue-600/10 border border-blue-600/30 rounded-lg">
+            <Label htmlFor="monetagZoneId" className="text-blue-300 flex items-center space-x-2 text-lg font-semibold">
+              <Code className="w-5 h-5" />
+              <span>Monetag Zone ID</span>
+            </Label>
+            <div className="flex space-x-2 mt-2">
+              <Input
+                id="monetagZoneId"
+                type="text"
+                value={adSettings.monetag_zone_id}
+                onChange={(e) => setAdSettings({...adSettings, monetag_zone_id: e.target.value})}
+                className="bg-gray-700/50 border-gray-600 text-white"
+                placeholder="e.g., 9506527"
+              />
+              <Button 
+                onClick={() => handleSave('monetag_zone_id', adSettings.monetag_zone_id)}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Save className="w-4 h-4" />
+              </Button>
+            </div>
+            <p className="text-gray-400 text-sm mt-1">
+              Monetag Dashboard থেকে Zone ID নিন। বর্তমান: {adSettings.monetag_zone_id}
+            </p>
+          </div>
+
+          {/* Ad Reward Amount */}
+          <div className="p-4 bg-green-600/10 border border-green-600/30 rounded-lg">
+            <Label htmlFor="adReward" className="text-green-300 flex items-center space-x-2 text-lg font-semibold">
+              <Monitor className="w-5 h-5" />
+              <span>Ad Reward Amount (USDT)</span>
+            </Label>
+            <div className="flex space-x-2 mt-2">
+              <Input
+                id="adReward"
+                type="number"
+                step="0.001"
+                min="0.001"
+                value={adSettings.ad_reward_amount}
+                onChange={(e) => setAdSettings({...adSettings, ad_reward_amount: e.target.value})}
+                className="bg-gray-700/50 border-gray-600 text-white"
+                placeholder="0.001"
+              />
+              <Button 
+                onClick={() => handleSave('ad_reward_amount', adSettings.ad_reward_amount)}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Save className="w-4 h-4" />
+              </Button>
+            </div>
+            <p className="text-gray-400 text-sm mt-1">
+              প্রতিটি বিজ্ঞাপন দেখার জন্য ইউজার কত USDT পাবে। বর্তমান: ${adSettings.ad_reward_amount}
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="adInterval" className="text-gray-300 flex items-center space-x-2">

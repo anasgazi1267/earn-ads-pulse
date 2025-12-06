@@ -272,14 +272,44 @@ export class DatabaseService {
 
   async incrementUserAdsWatched(telegramId: string): Promise<boolean> {
     try {
-      // Use database function for atomic increment
+      console.log(`📊 Incrementing ads watched for user: ${telegramId}`);
+      
+      // Try using database function for atomic increment
       const { data, error } = await supabase.rpc('increment_ads_watched', {
         user_telegram_id: telegramId
       });
 
       if (error) {
-        console.error('Error incrementing ads watched:', error);
-        return false;
+        console.error('RPC Error, trying fallback:', error);
+        
+        // Fallback: Direct update if RPC fails
+        const today = new Date().toISOString().split('T')[0];
+        const user = await this.getUserByTelegramId(telegramId);
+        
+        if (!user) {
+          console.error('User not found for ads increment');
+          return false;
+        }
+        
+        const lastActivityDate = user.last_activity_date?.toString().split('T')[0];
+        const newAdsCount = lastActivityDate === today ? (user.ads_watched_today || 0) + 1 : 1;
+        
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ 
+            ads_watched_today: newAdsCount,
+            last_activity_date: today,
+            updated_at: new Date().toISOString()
+          })
+          .eq('telegram_id', telegramId);
+
+        if (updateError) {
+          console.error('Fallback update error:', updateError);
+          return false;
+        }
+        
+        console.log(`✅ Fallback: Updated ads watched to ${newAdsCount}`);
+        return true;
       }
 
       console.log(`✅ Successfully updated ads watched for ${telegramId}`);
