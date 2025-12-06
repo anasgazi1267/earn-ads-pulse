@@ -22,7 +22,16 @@ import HtmlAdDisplay from './HtmlAdDisplay';
 // Declare global Monetag function
 declare global {
   interface Window {
-    show_9506527?: () => Promise<void>;
+    show_9506527?: (options?: {
+      type?: string;
+      inAppSettings?: {
+        frequency: number;
+        capping: number;
+        interval: number;
+        timeout: number;
+        everyPage: boolean;
+      };
+    }) => Promise<void>;
   }
 }
 
@@ -49,32 +58,17 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const [adScriptLoaded, setAdScriptLoaded] = useState(false);
   const { toast } = useToast();
 
-  // Load Monetag ad script on component mount
+  // Check if Monetag SDK is loaded
   useEffect(() => {
-    const loadMonetagScript = () => {
-      // Check if script already exists
-      if (document.getElementById('monetag-rewarded-script')) {
+    const checkMonetagSDK = () => {
+      if (typeof window.show_9506527 === 'function') {
+        console.log('✅ Monetag SDK is loaded and ready');
         setAdScriptLoaded(true);
-        return;
+      } else {
+        console.log('⏳ Waiting for Monetag SDK...');
+        // Retry after 1 second
+        setTimeout(checkMonetagSDK, 1000);
       }
-
-      const script = document.createElement('script');
-      script.id = 'monetag-rewarded-script';
-      script.src = 'https://alwingulla.com/88/tag.min.js';
-      script.setAttribute('data-zone', '9506527');
-      script.async = true;
-      
-      script.onload = () => {
-        console.log('✅ Monetag rewarded ad script loaded');
-        setAdScriptLoaded(true);
-      };
-      
-      script.onerror = () => {
-        console.error('❌ Failed to load Monetag script');
-        setAdScriptLoaded(false);
-      };
-      
-      document.head.appendChild(script);
     };
 
     // Check if we're NOT in Telegram WebView
@@ -83,7 +77,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
       window.location.hostname.includes('telegram');
 
     if (!isTelegramWebView) {
-      loadMonetagScript();
+      checkMonetagSDK();
     }
   }, []);
 
