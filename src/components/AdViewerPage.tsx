@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,11 +12,19 @@ import {
   Clock,
   CheckCircle,
   RefreshCw,
-  Gift
+  Gift,
+  Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { dbService } from '../services/database';
 import HtmlAdDisplay from './HtmlAdDisplay';
+
+// Declare global Monetag function
+declare global {
+  interface Window {
+    show_9506527?: () => Promise<void>;
+  }
+}
 
 interface AdViewerPageProps {
   userInfo: any;
@@ -38,7 +46,46 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
   const [canWatch, setCanWatch] = useState(true);
   const [dailyLimit, setDailyLimit] = useState(100);
   const [adReward] = useState(0.001);
+  const [adScriptLoaded, setAdScriptLoaded] = useState(false);
   const { toast } = useToast();
+
+  // Load Monetag ad script on component mount
+  useEffect(() => {
+    const loadMonetagScript = () => {
+      // Check if script already exists
+      if (document.getElementById('monetag-rewarded-script')) {
+        setAdScriptLoaded(true);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'monetag-rewarded-script';
+      script.src = 'https://alwingulla.com/88/tag.min.js';
+      script.setAttribute('data-zone', '9506527');
+      script.async = true;
+      
+      script.onload = () => {
+        console.log('✅ Monetag rewarded ad script loaded');
+        setAdScriptLoaded(true);
+      };
+      
+      script.onerror = () => {
+        console.error('❌ Failed to load Monetag script');
+        setAdScriptLoaded(false);
+      };
+      
+      document.head.appendChild(script);
+    };
+
+    // Check if we're NOT in Telegram WebView
+    const isTelegramWebView = window.Telegram?.WebApp || 
+      window.navigator.userAgent.includes('TelegramBot') ||
+      window.location.hostname.includes('telegram');
+
+    if (!isTelegramWebView) {
+      loadMonetagScript();
+    }
+  }, []);
 
   useEffect(() => {
     loadUserData();
@@ -82,7 +129,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     }
   };
 
-  const startWatchingAd = () => {
+  const startWatchingAd = useCallback(async () => {
     if (!canWatch) {
       toast({
         title: "Daily Limit Reached",
@@ -95,8 +142,7 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
     // Check if we're in Telegram WebView environment
     const isTelegramWebView = window.Telegram?.WebApp || 
       window.navigator.userAgent.includes('TelegramBot') ||
-      window.location.hostname.includes('telegram') ||
-      window.parent !== window;
+      window.location.hostname.includes('telegram');
 
     if (isTelegramWebView) {
       // For Telegram, show safe internal ad
@@ -107,22 +153,45 @@ const AdViewerPage: React.FC<AdViewerPageProps> = ({
         description: "নিরাপদ বিজ্ঞাপন দেখুন এবং USDT আয় করুন",
       });
     } else {
-      // For external environments, try to load Monetag
+      // For external environments, use Monetag rewarded interstitial
+      setIsLoading(true);
+      
       try {
-        // Load Monetag ad script dynamically
-        if (typeof window !== 'undefined' && (window as any).show_9506527) {
-          (window as any).show_9506527();
+        if (typeof window.show_9506527 === 'function') {
+          console.log('🎬 Starting Monetag rewarded ad...');
+          
+          // Show Monetag rewarded interstitial
+          await window.show_9506527();
+          
+          console.log('✅ Monetag ad completed!');
+          
+          // Ad was watched successfully
+          await handleAdCompleted();
+          
+        } else {
+          console.log('⚠️ Monetag function not available, using fallback');
+          // Fallback to countdown-based ad
+          setIsWatching(true);
+          setCountdown(15);
+          toast({
+            title: "বিজ্ঞাপন শুরু হচ্ছে",
+            description: "বিজ্ঞাপন দেখে USDT আয় করুন",
+          });
         }
-        setIsWatching(true);
-        setCountdown(15);
       } catch (error) {
-        console.error('Error loading external ad:', error);
+        console.error('Error showing Monetag ad:', error);
         // Fallback to internal ad
         setIsWatching(true);
         setCountdown(10);
+        toast({
+          title: "বিজ্ঞাপন লোড হচ্ছে",
+          description: "অনুগ্রহ করে অপেক্ষা করুন...",
+        });
+      } finally {
+        setIsLoading(false);
       }
     }
-  };
+  }, [canWatch, dailyLimit, toast]);
 
   const pauseAd = () => {
     setIsWatching(false);

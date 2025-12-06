@@ -19,8 +19,8 @@ import DeviceTracker from '@/components/DeviceTracker';
 // Telegram WebApp interface
 declare global {
   interface Window {
-    Telegram: {
-      WebApp: any;
+    Telegram?: {
+      WebApp?: any;
     };
   }
 }
